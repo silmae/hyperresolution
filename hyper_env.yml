@@ -1,0 +1,32 @@
+# Create environment with conda running:
+# conda env create -n hyper_env --file hyper_env.yml
+# Change "create" to "update" when updating.
+name: hyper_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy
+#  - Pillow
+ # - pandas
+ # - xarray
+  - scipy
+ # - netcdf4
+  - matplotlib
+ # - appdirs
+ # - tqdm
+  - toml
+ # - tabulate
+ # - ipython
+#  - sphinx #API documentation
+#  - cpuonly # disables pytorch CUDA that interferes with Blender's CUDA rendering (.dll loading errors)
+  - pytorch
+  - pytorch-cuda=11.7
+  - torchmetrics
+  - pip
+  - pip:
+#      - spectral # for image cube read and write
+#      - spectres # for resampling spectra
+#      - Pillow
