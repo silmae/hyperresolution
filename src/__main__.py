@@ -8,6 +8,12 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
+    # TODO Move loading the data here to make experimenting with different datasets easier
+
+    # TODO Docstrings everywhere
+
+    # TODO Break the train method into smaller pieces
+
     nn.train(epochs=100)
 
 
