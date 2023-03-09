@@ -5,6 +5,7 @@ import sys
 import math
 import os
 import numpy as np
+import h5py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -140,8 +141,8 @@ class Decoder(nn.Module):
         return x
 
 
-def file_loader():
-    mat = scipy.io.loadmat("./datasets/TinyAPEX.mat")
+def file_loader_rem_sens(filepath="./datasets/TinyAPEX.mat"):
+    mat = scipy.io.loadmat(filepath)
     # mat = scipy.io.loadmat("./datasets/Samson.mat")
     w = mat['W'][0][0] # W is 2 dim matrix with 1 element
     h = mat['H'][0][0]
@@ -156,16 +157,40 @@ def file_loader():
     return h, w, l, abundance_count, cube
 
 
+def file_loader_rock(filepath):
+    d = h5py.File(filepath, 'r')
+    contents = list(d.keys())
+    cube = np.transpose(d['/hdr'], (1, 2, 0))
+    cube = np.nan_to_num(cube, nan=1e-8)  # Original rock images are masked with NaN, replace those with small value
+
+    wavelengths = d['/wavelengths'][:]
+
+    # # Sanity check plot
+    # plt.imshow(np.nanmean(data, 2))
+    # plt.show()
+
+    dimensions = cube.shape
+    h = dimensions[0]
+    w = dimensions[1]
+    l = dimensions[2]
+
+    return h, w, l, cube, wavelengths
+
+
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
-    def __init__(self):
-        h, w, l, abundance_count, cube = file_loader()
+    def __init__(self, type, filepath):
+
+        if type == 'remote_sensing':
+            h, w, l, abundance_count, cube = file_loader_rem_sens(filepath)
+        elif type == 'rock':
+            h, w, l, cube, wavelengths = file_loader_rock(filepath)
 
         self.w = w
         self.h = h
         self.l = l
-        self.abundace_count = abundance_count
+        # self.abundance_count = abundance_count
         l_half = int(self.l / 2)
 
         self.cube = np.transpose(cube, (2, 1, 0))
@@ -202,28 +227,17 @@ class TrainingData(Dataset):
         return self.X, self.Y
 
 
-def train(epochs=1):
-
-    training_data = TrainingData()
-    bands = training_data.l
-    half_point = int(bands/2)
-    endmember_count = training_data.abundace_count
-    # endmember_count = 15 # hard-coded value for testing if changing this has any effect
-    # cube_original = training_data.Ys[1].numpy()  #training_data.cube
-    cube_original = training_data.Y.numpy()  #training_data.cube
-    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)
-
-    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-    print(f"Using {device} device")
-
-    enc = Encoder(enc_layer_count=2, band_count=int(bands/2), endmember_count=endmember_count, e_filter_count=128, kernel_size=7, kernel_reduction=2)
-    dec = Decoder(band_count=bands, endmember_count=endmember_count)
+def init_network(enc_params, dec_params, common_params):
+    enc = Encoder(enc_layer_count=2,
+                  band_count=int(common_params['bands'] / 2),
+                  endmember_count=common_params['endmember_count'],
+                  e_filter_count=128,
+                  kernel_size=7,
+                  kernel_reduction=2)
+    dec = Decoder(band_count=common_params['bands'],
+                  endmember_count=common_params['endmember_count'])
     enc = enc.float()
     dec = dec.float()
-
-    # Move network to GPU memory
-    enc = enc.to(device)
-    dec = dec.to(device)
 
     def init_weights(m):
         if isinstance(m, nn.Conv2d):
@@ -237,29 +251,51 @@ def train(epochs=1):
     logging.info(enc.parameters())
     logging.info(dec.parameters())
 
+    return enc, dec
+
+
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True):
+
+    bands = training_data.l
+    half_point = int(bands/2)
+
+    # cube_original = training_data.Ys[1].numpy()  #training_data.cube
+    cube_original = training_data.Y.numpy()  #training_data.cube
+    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)
+
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using {device} device")
+
+    # Build and initialize the encoder and decoder
+    enc, dec = init_network(enc_params, dec_params, common_params)
+
+    # Move network to GPU memory
+    enc = enc.to(device)
+    dec = dec.to(device)
+
     def loss_fn(y_true, y_pred):
         # # Chop both true and predicted cubes in half with respect of wavelength
 
         # https://discuss.pytorch.org/t/custom-loss-functions/29387 -Kimmo
 
-        def MAPE(Y_actual, Y_Predicted):
-            abs_diff = torch.abs((Y_actual - Y_Predicted))
-            # zero mask
-            mask = (Y_actual != 0)
-            # initialize output tensor with desired value
-            norm = torch.full_like(Y_actual, fill_value=float('nan'))
-            norm[mask] = torch.div(abs_diff[mask], Y_actual[mask]) # divide by non-zero elements
-            norm = torch.nan_to_num(norm, posinf=1e10) # replace infinities with finite big number
-            mean_diff = torch.mean(norm)
-            mape = mean_diff * 100
-            return mape
-
-        def mean_spectral_gradient(cube):
-            abs_grad = torch.abs(cube[:, 1:, :, :] - cube[:, :-1, :, :])
-            sum_grad = torch.sum(abs_grad, dim=(1))
-            mean_grad = torch.mean(sum_grad)
-            # sum_grad = torch.sum(mean_grad)
-            return mean_grad
+        # def MAPE(Y_actual, Y_Predicted):
+        #     abs_diff = torch.abs((Y_actual - Y_Predicted))
+        #     # zero mask
+        #     mask = (Y_actual != 0)
+        #     # initialize output tensor with desired value
+        #     norm = torch.full_like(Y_actual, fill_value=float('nan'))
+        #     norm[mask] = torch.div(abs_diff[mask], Y_actual[mask]) # divide by non-zero elements
+        #     norm = torch.nan_to_num(norm, posinf=1e10) # replace infinities with finite big number
+        #     mean_diff = torch.mean(norm)
+        #     mape = mean_diff * 100
+        #     return mape
+        #
+        # def mean_spectral_gradient(cube):
+        #     abs_grad = torch.abs(cube[:, 1:, :, :] - cube[:, :-1, :, :])
+        #     sum_grad = torch.sum(abs_grad, dim=(1))
+        #     mean_grad = torch.mean(sum_grad)
+        #     # sum_grad = torch.sum(mean_grad)
+        #     return mean_grad
 
         short_y_true = y_true[:, :half_point, :, :]
         long_y_true = y_true[:, half_point:, :, :]
@@ -342,7 +378,7 @@ def train(epochs=1):
             # torch.save(dec, f"./{dec_save_name}")
 
         # plot every n:th epoch false color images
-        if epoch % 1000 == 0 or epoch == n_epochs-1:
+        if plots is True and (epoch % 1000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
             endmembers_mid = endmembers[:, :, 6, 6]
@@ -392,7 +428,7 @@ def train(epochs=1):
             plotter.plot_SAM(spectral_angles, epoch)
             plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]], final_pred[:, worst_indices[0], worst_indices[1]], epoch, tag='worst')
             plotter.plot_spectra(cube_original[:, best_indices[0], best_indices[1]], final_pred[:, best_indices[0], best_indices[1]], epoch, tag='best')
-            plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec,dont_show=True, epoch=epoch)
+            plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True, epoch=epoch)
 
     plotter.plot_nn_train_history(train_losses, best_index, file_name='nn_history', log_y=True)
 
