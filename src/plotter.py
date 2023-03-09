@@ -7,6 +7,7 @@ https://towardsdatascience.com/5-powerful-tricks-to-visualize-your-data-with-mat
 """
 
 import os
+from pathlib import Path
 import logging
 
 import numpy as np
@@ -44,7 +45,7 @@ alpha_error = 0.2
 max_ticks = 8
 """Max tick count for wavelength."""
 
-image_type = 'jpg'
+image_type = 'png'
 
 
 def join(*args) -> str:
@@ -79,9 +80,8 @@ def plot_false_color(false_org, false_reconstructed, epoch, dont_show=True, save
 
     if save_thumbnail is not None:
         folder = './figures/'
-        # image_name = 'false_colors' + '.' + image_type
         image_name = f"false_e{epoch}.{image_type}"
-        path = join(folder, image_name)
+        path = Path(folder, image_name)
         logging.info(f"Saving the image to '{path}'.")
         plt.savefig(path, dpi=300)
     if not dont_show:
@@ -92,6 +92,14 @@ def plot_false_color(false_org, false_reconstructed, epoch, dont_show=True, save
 
 
 def plot_SAM(map, epoch):
+    """
+    Plots a spectral angle map and saves the figure on disc.
+
+    :param map:
+    The spectral angle map to be plotted, a 2D array where each element is the spectral angle in radians
+    :param epoch:
+    Training epoch where the map was calculated, will be included in filename of saved figure
+    """
 
     fig = plt.figure()
     fig.suptitle('SAM')
@@ -99,9 +107,8 @@ def plot_SAM(map, epoch):
     plt.colorbar()
 
     folder = './figures/'
-    # image_name = 'false_colors' + '.' + image_type
     image_name = f"SAM_e{epoch}.{image_type}"
-    path = join(folder, image_name)
+    path = Path(folder, image_name)
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
 
@@ -109,6 +116,19 @@ def plot_SAM(map, epoch):
 
 
 def plot_spectra(orig, pred, epoch, tag):
+    """
+    Plots two spectra, original and predicted, into same figure. Calculates for both curves a gradient to quantify the
+    amount of variation, and includes the results in a legend. Constructs a filename and saves the figure on disc.
+
+    :param orig:
+        Original spectrum
+    :param pred:
+        Predicted spectrum, same length as original
+    :param epoch:
+        Training epoch where the prediction was made, will be included in filename
+    :param tag:
+        A tag to be included in filename, for example 'best' or 'worst' prediction
+    """
 
     # To quantify noise, calculate gradients from both
     orig_grad = sum(abs(orig[1:] - orig[:-1]))
@@ -121,7 +141,7 @@ def plot_spectra(orig, pred, epoch, tag):
 
     folder = './figures/'
     image_name = f"spectra_{tag}_e{epoch}.{image_type}"
-    path = join(folder, image_name)
+    path = Path(folder, image_name)
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
 
@@ -129,17 +149,23 @@ def plot_spectra(orig, pred, epoch, tag):
 
 
 def plot_endmembers(endmembers, epoch):
+    """
+    Plots endmember spectra into one figure, and saves it on disc.
+
+    :param endmembers:
+    All endmembers included into one ndarray
+    :param epoch:
+    Training epoch where the endmembers were saved, will be included in filename of saved figure
+    """
+
     fig = plt.figure()
     fig.suptitle('Endmember spectra')
     for i in range(len(endmembers[0, :])):
         plt.plot(endmembers[:, i])
-    # plt.plot(endmembers[:, 1])
-    # plt.plot(endmembers[:, 2])
-    # plt.plot(endmembers[:, 3])
 
     folder = './figures/'
     image_name = f"endmembers_e{epoch}.{image_type}"
-    path = join(folder, image_name)
+    path = Path(folder, image_name)
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
 
@@ -177,10 +203,9 @@ def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumb
     ax.legend()
 
     if save_thumbnail:
-        # image_name = "nn_train_history.png"
         if not file_name.endswith(".png"):
             file_name = file_name + '.png'
-        path = join('./', file_name)
+        path = Path('./', file_name)
         logging.info(f"Saving NN training history to '{path}'.")
         plt.savefig(path, dpi=300)
     if not dont_show:
