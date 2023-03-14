@@ -19,6 +19,7 @@ dependencies:
  # - appdirs
  # - tqdm
   - toml
+  - xarray
  # - tabulate
  # - ipython
 #  - sphinx #API documentation
