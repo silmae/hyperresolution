@@ -6,6 +6,7 @@ import math
 import os
 import numpy as np
 import h5py
+import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -165,14 +166,36 @@ def file_loader_rock(filepath):
 
     wavelengths = d['/wavelengths'][:]
 
-    # # Sanity check plot
-    # plt.imshow(np.nanmean(data, 2))
-    # plt.show()
+    cube = cube[50:, 50:, :]
+
+    # Sanity check plot
+    plt.imshow(np.nanmean(cube, 2))
+    plt.show()
 
     dimensions = cube.shape
     h = dimensions[0]
     w = dimensions[1]
     l = dimensions[2]
+
+    return h, w, l, cube, wavelengths
+
+
+def file_loader_luigi(filepath):
+    data = xr.open_dataset(filepath)['reflectance']
+    cube = data.values
+
+    cube = cube[75:400, 75:400, 0:120]
+
+    # Sanity check plot
+    plt.imshow(cube[:, :, 80])
+    plt.show()
+
+    shape = cube.shape
+    w = shape[1]
+    h = shape[0]
+    l = shape[2]
+
+    wavelengths = data.wavelength.values
 
     return h, w, l, cube, wavelengths
 
@@ -186,6 +209,8 @@ class TrainingData(Dataset):
             h, w, l, abundance_count, cube = file_loader_rem_sens(filepath)
         elif type == 'rock':
             h, w, l, cube, wavelengths = file_loader_rock(filepath)
+        elif type == 'luigi':
+            h, w, l, cube, wavelengths = file_loader_luigi(filepath)
 
         self.w = w
         self.h = h
