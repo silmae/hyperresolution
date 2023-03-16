@@ -11,29 +11,31 @@ if __name__ == '__main__':
 
     # TODO Docstrings everywhere
 
-    training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
+    # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
     bands = training_data.l
-    endmember_count = 4
+
+    endmember_count = 5
+
     # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count}
 
-    enc_params = {'enc_layer_count': 2,
+    enc_params = {'enc_layer_count': 3,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
                   'e_filter_count': 64,
-                  'kernel_size': 5,
+                  'kernel_size': 7,
                   'kernel_reduction': 2}
 
     dec_params = {'band_count': common_params['bands'],
                   'endmember_count': common_params['endmember_count']}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=10000)
-
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=5000)
 
 
 # The rest is abandoned code saved for snippets if needed
