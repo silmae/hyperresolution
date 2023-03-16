@@ -20,6 +20,7 @@ dependencies:
  # - tqdm
   - toml
   - xarray
+  - netcdf4
  # - tabulate
  # - ipython
 #  - sphinx #API documentation
