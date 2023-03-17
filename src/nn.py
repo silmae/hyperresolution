@@ -6,7 +6,7 @@ import math
 import os
 import numpy as np
 import h5py
-import xarray as xr
+# import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,7 +18,7 @@ from torch import load
 from torch import from_numpy
 import torch.optim as optim
 import torchmetrics
-import scipy.io # for loading Matlab matrices
+import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
 
 from src import plotter
@@ -135,9 +135,9 @@ class Decoder(nn.Module):
             x = layer(x)
             # Force the weights to be positive, these will be the endmember spectra:
             layer.weight.data = layer.weight.data.clamp(min=0)
-            # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
-            variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
-            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] - variation*0.01  # Not a good idea to subtract all of the variation, adjust the percentage
+            # # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
+            # variation = np.sum((layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :])**2)
+            # layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] + variation*0.01  # Not a good idea to subtract all of the variation, adjust the percentage
 
         return x
 
@@ -351,7 +351,11 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # Calculate the gradients of predicted spectra to quantify the noise
         # loss_grad = mean_spectral_gradient(y_pred) - mean_spectral_gradient(y_true)
 
-        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM  #+ loss_grad*2
+        total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
+
+        # layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
+
+        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM + total_variation * 0.1 #+ loss_grad*2
 
         return loss_sum
 
