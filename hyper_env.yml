@@ -11,22 +11,20 @@ dependencies:
   - numpy
 #  - Pillow
  # - pandas
- # - xarray
-  - scipy
- # - netcdf4
+#  - scipy
   - h5py
   - matplotlib
  # - appdirs
  # - tqdm
-  - toml
-#  - xarray
-#  - netcdf4
+#  - toml
+  - xarray
+  - netcdf4
  # - tabulate
  # - ipython
 #  - sphinx #API documentation
-  - cpuonly # disables pytorch CUDA that interferes with Blender's CUDA rendering (.dll loading errors)
+#  - cpuonly # disables pytorch CUDA that interferes with Blender's CUDA rendering (.dll loading errors)
   - pytorch
-#  - pytorch-cuda=11.7
+  - pytorch-cuda=11.7
   - torchmetrics
   - pip
   - pip:
