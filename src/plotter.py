@@ -13,7 +13,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from scipy.optimize import curve_fit
+# from scipy.optimize import curve_fit
 
 
 figsize = (12,6)
