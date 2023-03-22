@@ -1,6 +1,7 @@
 from pathlib import Path
 import logging
 import sys
+import os
 
 from src import nn
 
@@ -9,10 +10,19 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
+    ############################
+    # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
+    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+    ############################
+
+    print('testing')
+
     # TODO Docstrings everywhere
 
-    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
-    training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
+    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
     bands = training_data.l
