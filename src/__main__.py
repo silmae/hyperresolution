@@ -16,7 +16,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -43,10 +43,10 @@ if __name__ == '__main__':
     common_params = {'bands': bands,
                      'endmember_count': endmember_count}
 
-    enc_params = {'enc_layer_count': 3,
+    enc_params = {'enc_layer_count': 4,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 64,
+                  'e_filter_count': 128,
                   'kernel_size': 7,
                   'kernel_reduction': 2}
 
@@ -54,7 +54,7 @@ if __name__ == '__main__':
                   'endmember_count': common_params['endmember_count']}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=5000)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=10000)
 
 
 # The rest is abandoned code saved for snippets if needed
