@@ -351,11 +351,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # Calculate the gradients of predicted spectra to quantify the noise
         # loss_grad = mean_spectral_gradient(y_pred) - mean_spectral_gradient(y_true)
 
-        total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
+        # total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
+
+        total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
 
         # layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
 
-        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM + total_variation * 0.1 #+ loss_grad*2
+        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM + total_variation * 0.01 #+ loss_grad*2
 
         return loss_sum
 
