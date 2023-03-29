@@ -16,24 +16,33 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
 
-    # Storing ID of current CUDA device
-    cuda_id = torch.cuda.current_device()
-    print(f"ID of current CUDA device: {torch.cuda.current_device()}")
+    if torch.cuda.is_available():
+        # Storing ID of current CUDA device
+        cuda_id = torch.cuda.current_device()
+        print(f"ID of current CUDA device: {torch.cuda.current_device()}")
 
-    print(f"Name of current CUDA device: {torch.cuda.get_device_name(cuda_id)}")
+        print(f"Name of current CUDA device: {torch.cuda.get_device_name(cuda_id)}")
 
     # TODO Docstrings everywhere
 
-    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
-    # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
+    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
+    def square_and_mask(dataset):
+
+        # Data dimension order is (l, w, h)
+        side = min(dataset.w, dataset.h)
+
+
+
+    training_data = square_and_mask(training_data)
     bands = training_data.l
 
     endmember_count = 5
@@ -43,11 +52,11 @@ if __name__ == '__main__':
     common_params = {'bands': bands,
                      'endmember_count': endmember_count}
 
-    enc_params = {'enc_layer_count': 4,
+    enc_params = {'enc_layer_count': 3,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
                   'e_filter_count': 128,
-                  'kernel_size': 7,
+                  'kernel_size': 5,
                   'kernel_reduction': 2}
 
     dec_params = {'band_count': common_params['bands'],
