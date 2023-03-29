@@ -107,7 +107,7 @@ class Encoder(nn.Module):
             x = self.activation(self.layers[i](x))
             x = self.norms[i](x)
 
-        out = self.soft_max(x*3.5)  # this really seems to be important XD
+        out = self.soft_max(x * 3.5)  # the magical constant is from Palsson's paper, there called alpha
 
         return out
 
@@ -135,9 +135,16 @@ class Decoder(nn.Module):
             x = layer(x)
             # Force the weights to be positive, these will be the endmember spectra:
             layer.weight.data = layer.weight.data.clamp(min=0)
-            # # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
-            # variation = np.sum((layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :])**2)
-            # layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] + variation*0.01  # Not a good idea to subtract all of the variation, adjust the percentage
+            # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
+            variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
+            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] - variation * 0.001 # Not a good idea to subtract all of the variation, adjust the percentage
+
+            # Set weights of the first decoder kernel to match the value used for masks
+            orig_kernel = layer.weight.data[:, 0, :, :]
+            mask_endmember = np.zeros(orig_kernel.shape)
+            mid_index = int((orig_kernel.shape[1] - 1) / 2)
+            mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
+            layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
 
         return x
 
@@ -162,15 +169,15 @@ def file_loader_rock(filepath):
     d = h5py.File(filepath, 'r')
     contents = list(d.keys())
     cube = np.transpose(d['/hdr'], (1, 2, 0))
-    cube = np.nan_to_num(cube, nan=1e-8)  # Original rock images are masked with NaN, replace those with small value
+    cube = np.nan_to_num(cube, nan=0.5)  # Original rock images are masked with NaN, replace those with a number
 
     wavelengths = d['/wavelengths'][:]
 
-    cube = cube[50:, 50:, :]
+    # cube = cube[50:, 50:, :]
 
-    # Sanity check plot
-    plt.imshow(np.nanmean(cube, 2))
-    plt.show()
+    # # Sanity check plot
+    # plt.imshow(np.nanmean(cube, 2))
+    # plt.show()
 
     dimensions = cube.shape
     h = dimensions[0]
@@ -350,14 +357,17 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         # Calculate the gradients of predicted spectra to quantify the noise
         # loss_grad = mean_spectral_gradient(y_pred) - mean_spectral_gradient(y_true)
+        # grad = dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :]
+        # total_variation = torch.sum(torch.square(grad))
+        # print(f'TV: {total_variation}')
 
         # total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
 
-        total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
+        # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
 
         # layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
 
-        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM + total_variation * 0.01 #+ loss_grad*2
+        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM  # + total_variation * 0.1 #+ loss_grad*2
 
         return loss_sum
 
@@ -409,7 +419,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # plot every n:th epoch false color images
-        if plots is True and (epoch % 1000 == 0 or epoch == n_epochs-1):
+        if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
             endmembers_mid = endmembers[:, :, 6, 6]
@@ -459,6 +469,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_SAM(spectral_angles, epoch)
             plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]], final_pred[:, worst_indices[0], worst_indices[1]], epoch, tag='worst')
             plotter.plot_spectra(cube_original[:, best_indices[0], best_indices[1]], final_pred[:, best_indices[0], best_indices[1]], epoch, tag='best')
+            plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)], final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], epoch, tag='middle')
             plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True, epoch=epoch)
 
     plotter.plot_nn_train_history(train_losses, best_index, file_name='nn_history', log_y=True)
