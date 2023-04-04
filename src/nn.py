@@ -6,7 +6,7 @@ import math
 import os
 import numpy as np
 import h5py
-# import xarray as xr
+import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -191,7 +191,7 @@ def file_loader_luigi(filepath):
     data = xr.open_dataset(filepath)['reflectance']
     cube = data.values
 
-    cube = cube[75:400, 75:400, 0:120]
+    # cube = cube[75:400, 75:400, 0:120]
 
     # Sanity check plot
     plt.imshow(cube[:, :, 80])
