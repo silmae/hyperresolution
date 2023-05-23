@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from tensordict.tensordict import TensorDict
 from torch.utils.data import random_split
 from torch import save
 from torch import load
@@ -198,8 +199,8 @@ def file_loader_luigi(filepath):
     plt.show()
 
     shape = cube.shape
-    w = shape[1]
     h = shape[0]
+    w = shape[1]
     l = shape[2]
 
     wavelengths = data.wavelength.values
@@ -219,20 +220,26 @@ class TrainingData(Dataset):
         elif type == 'luigi':
             h, w, l, cube, wavelengths = file_loader_luigi(filepath)
 
-        self.w = w
-        self.h = h
-        self.l = l
+        # Dimensions of the image must be [batches, length (band count), width, height] for convolution
+        # We make transformation from [h, w, l] to [l, w, h] in here once at the loading time.
+        self.cube = np.transpose(cube, (2, 1, 0))
+
+        dims = self.cube.shape
+
+        self.l = dims[0]
+        self.w = dims[1]
+        self.h = dims[2]
         # self.abundance_count = abundance_count
         l_half = int(self.l / 2)
 
-        self.cube = np.transpose(cube, (2, 1, 0))
-
         first_half = self.cube[:l_half, :, :]
 
-        # Dimensions of the image must be [batches, bands, width, height] for convolution
-        # We make transformation from [h, w, bands] in here once at the loading time.
+        plt.imshow(self.cube[80,:,:])
+        plt.show()
+
         self.X = torch.from_numpy(first_half).float()
-        self.Y = torch.from_numpy(self.cube).float()
+        self.Y = torch.from_numpy(self.cube).float()  #TODO make the Y a mean spectrum over the circular area
+
         # half_w = 50
         # half_h = 50
         # self.Xs = [
@@ -255,6 +262,7 @@ class TrainingData(Dataset):
         # add one empty dimension https://stackoverflow.com/questions/57237381/runtimeerror-expected-4-dimensional-input-for-4-dimensional-weight-32-3-3-but
         # convert to float (the same must be done for the NNs later https://discuss.pytorch.org/t/runtimeerror-expected-object-of-scalar-type-double-but-got-scalar-type-float-for-argument-2-weight/38961/9)
         # return torch.unsqueeze(self.Xs[1], 0), torch.unsqueeze(self.Ys[1], 0)
+        # return torch.unsqueeze(self.X[1], 0), torch.unsqueeze(self.Y[1], 0)
         # return self.Xs[1], self.Ys[1]
         return self.X, self.Y
 
@@ -292,8 +300,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     half_point = int(bands/2)
 
     # cube_original = training_data.Ys[1].numpy()  #training_data.cube
-    cube_original = training_data.Y.numpy()  #training_data.cube
-    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)
+    cube_original = training_data.cube#.numpy()  #training_data.cube
+
+    training_data.X = torch.unsqueeze(training_data.X, 0)
+    y_short = torch.unsqueeze(torch.from_numpy(training_data.Y[0]).float(), 0)
+    y_long = torch.unsqueeze(torch.from_numpy(training_data.Y[1]).float(), 0)
+
+    training_data.Y = TensorDict({"short": y_short, "long": y_long}, batch_size=1)
+
+    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)  # TODO torchdict is causing problems, needs a custom dataloader probably (check examples)
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"Using {device} device")
@@ -329,8 +344,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     # sum_grad = torch.sum(mean_grad)
         #     return mean_grad
 
-        short_y_true = y_true[:, :half_point, :, :]
-        long_y_true = y_true[:, half_point:, :, :]
+        short_y_true = y_true['short']  #y_true[:, :half_point, :, :]
+        long_y_true = y_true['long']  #y_true[:, half_point:, :, :]
         short_y_pred = y_pred[:, :half_point, :, :]
         long_y_pred = y_pred[:, half_point:, :, :]
 
@@ -343,7 +358,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         loss_short_SAM = metric_SAM(short_y_pred, short_y_true)
 
         # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
-        long_y_true = torch.mean(long_y_true, dim=(2, 3))
+        # long_y_true = torch.mean(long_y_true, dim=(2, 3))
         long_y_true = torch.unsqueeze(long_y_true, 2)
         long_y_true = torch.unsqueeze(long_y_true, 3)
 
@@ -418,7 +433,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(enc, f"./{enc_save_name}")
             # torch.save(dec, f"./{dec_save_name}")
 
-        # plot every n:th epoch false color images
+        # every n:th epoch plot endmember spectra and false color images from longer end
         if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()

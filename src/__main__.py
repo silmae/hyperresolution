@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from src import nn
+from src import utils
 
 
 if __name__ == '__main__':
@@ -34,16 +35,15 @@ if __name__ == '__main__':
 
     # TODO Docstrings everywhere
 
-    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
-    training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
+    # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
     def crop_and_mask(dataset, aspect_ratio=1):
 
         orig_w = dataset.w
         orig_h = dataset.h
         # Data dimension order is (l, w, h)
-
 
         def cut_horizontally(dataset, h):
             half_leftover = (orig_h - h) / 2
@@ -58,6 +58,7 @@ if __name__ == '__main__':
             return dataset
 
         def cut_vertically(dataset, w):
+            '''Make two vertical cuts removing data from left and right of center'''
             half_leftover = (orig_w - w) / 2
             start_i = math.floor(half_leftover)
             end_i = math.ceil(half_leftover)
@@ -69,15 +70,31 @@ if __name__ == '__main__':
             dataset.w = w
             return dataset
 
-        if orig_h < orig_w:
-            if orig_w > int(orig_h * aspect_ratio):
-                h = orig_h
-                w = int(orig_h * aspect_ratio)
-                dataset = cut_vertically(dataset, w)
-            else:
-                h = int(orig_w * (1/aspect_ratio))
-                w = orig_w
-                dataset = cut_horizontally(dataset, h)
+        if orig_h > orig_w:  # if image is not horizontal or square, rotate 90 degrees
+            plt.imshow(np.nanmean(dataset.X, 0) + 1)
+            plt.show()
+            dataset.X = np.rot90(dataset.X, axes=(1, 2))
+            dataset.Y = np.rot90(dataset.Y, axes=(1, 2))
+            dataset.cube = np.rot90(dataset.cube, axes=(1, 2))
+
+            plt.imshow(np.nanmean(dataset.X, 0))  # The plot will appear in wrong orientation due to matplotlib expecting the indices in a certain order
+            plt.show()
+
+            dataset.w = orig_h
+            dataset.h = orig_w
+
+            orig_h = dataset.h
+            orig_w = dataset.w
+
+        if orig_w > int(orig_h * aspect_ratio):
+            h = orig_h
+            w = int(orig_h * aspect_ratio)
+            dataset = cut_vertically(dataset, w)
+        else:
+            h = int(orig_w * (1/aspect_ratio))
+            w = orig_w
+            dataset = cut_horizontally(dataset, h)
+
             # half_leftover = (orig_w - w) / 2
             # start_i = math.floor(half_leftover)
             # end_i = math.ceil(half_leftover)
@@ -88,15 +105,16 @@ if __name__ == '__main__':
             #
             # dataset.w = w
 
-        elif orig_h >= orig_w:
-            if orig_h > int(orig_w * aspect_ratio):
-                h = int(orig_w * aspect_ratio)
-                w = orig_w
-                dataset = cut_horizontally(dataset, h, w)
-            else:
-                h = orig_h
-                w = int(orig_h * (1/aspect_ratio))
-                dataset = cut_vertically(dataset, w)
+        # # REPLACED THIS WITH ROTATING THE DATA 90DEG IF THE IMAGE IS VERTICAL
+        # elif orig_h >= orig_w:
+        #     if orig_h > int(orig_w * aspect_ratio):
+        #         h = int(orig_w * aspect_ratio)
+        #         w = orig_w
+        #         dataset = cut_horizontally(dataset, h, w)
+        #     else:
+        #         h = orig_h
+        #         w = int(orig_h * (1/aspect_ratio))
+        #         dataset = cut_vertically(dataset, w)
 
             # half_leftover = (orig_h - h) / 2
             # start_i = math.floor(half_leftover)
@@ -107,34 +125,22 @@ if __name__ == '__main__':
             # dataset.cube = dataset.cube[:, :, start_i:-end_i]
             # dataset.h = h
 
+        radius = int(min([dataset.h, dataset.w]) / 2)
 
+        dataset.X = utils.apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)  # dataset.X * mask
+        # dataset.Y = utils.apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
+        dataset.cube = utils.apply_circular_mask(dataset.cube, dataset.w, dataset.h, radius=radius)
 
-        radius = int(max([h, w]) / 2)
-        mask = create_circular_mask(w, h, radius=radius)
-        mask = abs((mask * 1))
+        half_point = int(dataset.l / 2)
+        Y_short = dataset.cube[:half_point, :, :]
+        Y_long = dataset.cube[half_point:, :, :]
+        Y_long = np.mean(Y_long, axis=(1, 2))
+        dataset.Y = [Y_short, Y_long]
 
-        dataset.X = dataset.X * mask
-        dataset.Y = dataset.Y * mask
-        dataset.cube = dataset.cube * mask
-
-        plt.imshow(np.nanmean(dataset.X, 0))
+        plt.imshow(np.nanmean(dataset.X, 0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
         plt.show()
 
         return dataset
-
-    def create_circular_mask(h, w, center=None, radius=None):
-        """From https://stackoverflow.com/a/44874588"""
-
-        if center is None:  # use the middle of the image
-            center = (int(w / 2), int(h / 2))
-        if radius is None:  # use the smallest distance between the center and image walls
-            radius = min(center[0], center[1], w - center[0], h - center[1])
-
-        Y, X = np.ogrid[:h, :w]
-        dist_from_center = np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
-
-        mask = dist_from_center <= radius
-        return mask
 
     training_data = crop_and_mask(training_data, aspect_ratio=6.7/5.4)
     bands = training_data.l
