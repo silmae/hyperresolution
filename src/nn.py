@@ -6,13 +6,12 @@ import math
 import os
 import numpy as np
 import h5py
-import xarray as xr
+# import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from tensordict.tensordict import TensorDict
 from torch.utils.data import random_split
 from torch import save
 from torch import load
@@ -23,6 +22,7 @@ import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
 
 from src import plotter
+from src import utils
 
 # Set manual seed when doing hyperparameter search for comparable results
 # between training runs.
@@ -76,13 +76,25 @@ class Encoder(nn.Module):
 
         # self.layers.append(nn.Conv3d(in_channels=band_count, out_channels=band_count, kernel_size=(3,3,3), padding='same'))
         # self.layers.append(nn.Flatten())
-        self.layers.append(nn.Conv2d(in_channels=band_count, out_channels=self.filter_counts[0], kernel_size=kernel_size, padding='same', stride=1, bias=False))
+        self.layers.append(nn.Conv2d(in_channels=band_count,
+                                     out_channels=self.filter_counts[0],
+                                     kernel_size=kernel_size, padding='same',
+                                     stride=1,
+                                     bias=False))
         if enc_layer_count > 2:
             for i in range(1, enc_layer_count-1):
                 kernel_size = kernel_size - kernel_reduction
-                self.layers.append(nn.Conv2d(in_channels=self.filter_counts[i-1], out_channels=self.filter_counts[i], kernel_size=kernel_size, padding='same', stride=1, bias=False))
+                self.layers.append(nn.Conv2d(in_channels=self.filter_counts[i-1],
+                                             out_channels=self.filter_counts[i],
+                                             kernel_size=kernel_size, padding='same',
+                                             stride=1,
+                                             bias=False))
 
-        self.layers.append(nn.Conv2d(in_channels=int(self.filter_counts[-1]), out_channels=endmember_count, kernel_size=1, padding='same', stride=1, bias=False))
+        self.layers.append(nn.Conv2d(in_channels=int(self.filter_counts[-1]),
+                                     out_channels=endmember_count, kernel_size=1,
+                                     padding='same',
+                                     stride=1,
+                                     bias=False))
 
         self.soft_max = nn.Softmax(dim=1)
 
@@ -199,8 +211,8 @@ def file_loader_luigi(filepath):
     plt.show()
 
     shape = cube.shape
-    h = shape[0]
     w = shape[1]
+    h = shape[0]
     l = shape[2]
 
     wavelengths = data.wavelength.values
@@ -220,26 +232,20 @@ class TrainingData(Dataset):
         elif type == 'luigi':
             h, w, l, cube, wavelengths = file_loader_luigi(filepath)
 
-        # Dimensions of the image must be [batches, length (band count), width, height] for convolution
-        # We make transformation from [h, w, l] to [l, w, h] in here once at the loading time.
-        self.cube = np.transpose(cube, (2, 1, 0))
-
-        dims = self.cube.shape
-
-        self.l = dims[0]
-        self.w = dims[1]
-        self.h = dims[2]
+        self.w = w
+        self.h = h
+        self.l = l
         # self.abundance_count = abundance_count
         l_half = int(self.l / 2)
 
+        # Dimensions of the image must be [batches, bands, width, height] for convolution
+        # We make transformation from [h, w, bands] in here once at the loading time.
+        self.cube = np.transpose(cube, (2, 1, 0))
+
         first_half = self.cube[:l_half, :, :]
 
-        plt.imshow(self.cube[80,:,:])
-        plt.show()
-
         self.X = torch.from_numpy(first_half).float()
-        self.Y = torch.from_numpy(self.cube).float()  #TODO make the Y a mean spectrum over the circular area
-
+        self.Y = torch.from_numpy(self.cube).float()
         # half_w = 50
         # half_h = 50
         # self.Xs = [
@@ -262,7 +268,6 @@ class TrainingData(Dataset):
         # add one empty dimension https://stackoverflow.com/questions/57237381/runtimeerror-expected-4-dimensional-input-for-4-dimensional-weight-32-3-3-but
         # convert to float (the same must be done for the NNs later https://discuss.pytorch.org/t/runtimeerror-expected-object-of-scalar-type-double-but-got-scalar-type-float-for-argument-2-weight/38961/9)
         # return torch.unsqueeze(self.Xs[1], 0), torch.unsqueeze(self.Ys[1], 0)
-        # return torch.unsqueeze(self.X[1], 0), torch.unsqueeze(self.Y[1], 0)
         # return self.Xs[1], self.Ys[1]
         return self.X, self.Y
 
@@ -300,15 +305,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     half_point = int(bands/2)
 
     # cube_original = training_data.Ys[1].numpy()  #training_data.cube
-    cube_original = training_data.cube#.numpy()  #training_data.cube
+    cube_original = training_data.cube
+    training_data.X = training_data.X.float()
+    training_data.Y = training_data.Y.float()
 
-    training_data.X = torch.unsqueeze(training_data.X, 0)
-    y_short = torch.unsqueeze(torch.from_numpy(training_data.Y[0]).float(), 0)
-    y_long = torch.unsqueeze(torch.from_numpy(training_data.Y[1]).float(), 0)
+    w = training_data.w
+    h = training_data.h
 
-    training_data.Y = TensorDict({"short": y_short, "long": y_long}, batch_size=1)
-
-    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)  # TODO torchdict is causing problems, needs a custom dataloader probably (check examples)
+    data_loader = DataLoader(training_data, shuffle=False, batch_size=4)
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"Using {device} device")
@@ -344,21 +348,30 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     # sum_grad = torch.sum(mean_grad)
         #     return mean_grad
 
-        short_y_true = y_true['short']  #y_true[:, :half_point, :, :]
-        long_y_true = y_true['long']  #y_true[:, half_point:, :, :]
+        def cubeSAM(predcube, groundcube):  #TODO funktio!
+            '''Calculate mean SAM of masked image cube. Omits the arccos, replacing it with subtracting result from 1'''
+            return 1
+
+        short_y_true = y_true[:, :half_point, :, :]
+        long_y_true = y_true[:, half_point:, :, :]
+
+        y_pred = utils.apply_circular_mask(y_pred, w, h)
         short_y_pred = y_pred[:, :half_point, :, :]
         long_y_pred = y_pred[:, half_point:, :, :]
 
         # Calculate short wavelength loss by comparing cubes. For loss metric MAPE
         # loss_short = MAPE(short_y_true, short_y_pred)
         metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
-        metric_SAM = torchmetrics.SpectralAngleMapper().to(device)
+        metric_SAM = torchmetrics.SpectralAngleMapper(reduction='none').to(device)
 
         loss_short = metric_mape(short_y_pred, short_y_true)
-        loss_short_SAM = metric_SAM(short_y_pred, short_y_true)
+        # loss_short_SAM = metric_SAM(short_y_pred, short_y_true)  # Using this function for masked cube breaks backprop: "RuntimeError: Function 'CatBackward0' returned nan values in its 0th output."
+        # # loss_short_SAM = torch.nan_to_num(loss_short_SAM)
+        # loss_short_SAM = torch.mean(loss_short_SAM)
+        loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
         # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
-        # long_y_true = torch.mean(long_y_true, dim=(2, 3))
+        long_y_true = torch.mean(long_y_true, dim=(2, 3))
         long_y_true = torch.unsqueeze(long_y_true, 2)
         long_y_true = torch.unsqueeze(long_y_true, 3)
 

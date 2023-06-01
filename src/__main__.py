@@ -11,6 +11,8 @@ import torch
 from src import nn
 from src import utils
 
+from torch.masked import masked_tensor
+
 
 if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
@@ -46,6 +48,7 @@ if __name__ == '__main__':
         # Data dimension order is (l, w, h)
 
         def cut_horizontally(dataset, h):
+            '''Make two horizontal cuts removing data from top and bottom rows of image'''
             half_leftover = (orig_h - h) / 2
             start_i = math.floor(half_leftover)
             end_i = math.ceil(half_leftover)
@@ -128,17 +131,17 @@ if __name__ == '__main__':
         radius = int(min([dataset.h, dataset.w]) / 2)
 
         dataset.X = utils.apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)  # dataset.X * mask
-        # dataset.Y = utils.apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
+        dataset.Y = utils.apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
         dataset.cube = utils.apply_circular_mask(dataset.cube, dataset.w, dataset.h, radius=radius)
 
-        half_point = int(dataset.l / 2)
-        Y_short = dataset.cube[:half_point, :, :]
-        Y_long = dataset.cube[half_point:, :, :]
-        Y_long = np.mean(Y_long, axis=(1, 2))
-        dataset.Y = [Y_short, Y_long]
+        # half_point = int(dataset.l / 2)
+        # Y_short = dataset.cube[:half_point, :, :]
+        # Y_long = dataset.cube[half_point:, :, :]
+        # Y_long = np.mean(Y_long, axis=(1, 2))
+        # dataset.Y = [Y_short, Y_long]
 
-        plt.imshow(np.nanmean(dataset.X, 0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
-        plt.show()
+        # plt.imshow(np.nanmean(dataset.X, 0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
+        # plt.show()
 
         return dataset
 
