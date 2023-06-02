@@ -37,9 +37,9 @@ if __name__ == '__main__':
 
     # TODO Docstrings everywhere
 
-    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
-    # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
+    training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
     def crop_and_mask(dataset, aspect_ratio=1):
 
@@ -76,8 +76,8 @@ if __name__ == '__main__':
         if orig_h > orig_w:  # if image is not horizontal or square, rotate 90 degrees
             plt.imshow(np.nanmean(dataset.X, 0) + 1)
             plt.show()
-            dataset.X = np.rot90(dataset.X, axes=(1, 2))
-            dataset.Y = np.rot90(dataset.Y, axes=(1, 2))
+            dataset.X = torch.rot90(dataset.X, dims=(1, 2))
+            dataset.Y = torch.rot90(dataset.Y, dims=(1, 2))
             dataset.cube = np.rot90(dataset.cube, axes=(1, 2))
 
             plt.imshow(np.nanmean(dataset.X, 0))  # The plot will appear in wrong orientation due to matplotlib expecting the indices in a certain order
@@ -98,47 +98,11 @@ if __name__ == '__main__':
             w = orig_w
             dataset = cut_horizontally(dataset, h)
 
-            # half_leftover = (orig_w - w) / 2
-            # start_i = math.floor(half_leftover)
-            # end_i = math.ceil(half_leftover)
-            #
-            # dataset.X = dataset.X[:, start_i:-end_i, :]
-            # dataset.Y = dataset.Y[:, start_i:-end_i, :]
-            # dataset.cube = dataset.cube[:, start_i:-end_i, :]
-            #
-            # dataset.w = w
-
-        # # REPLACED THIS WITH ROTATING THE DATA 90DEG IF THE IMAGE IS VERTICAL
-        # elif orig_h >= orig_w:
-        #     if orig_h > int(orig_w * aspect_ratio):
-        #         h = int(orig_w * aspect_ratio)
-        #         w = orig_w
-        #         dataset = cut_horizontally(dataset, h, w)
-        #     else:
-        #         h = orig_h
-        #         w = int(orig_h * (1/aspect_ratio))
-        #         dataset = cut_vertically(dataset, w)
-
-            # half_leftover = (orig_h - h) / 2
-            # start_i = math.floor(half_leftover)
-            # end_i = math.ceil(half_leftover)
-
-            # dataset.X = dataset.X[:, :, start_i:-end_i]
-            # dataset.Y = dataset.Y[:, :, start_i:-end_i]
-            # dataset.cube = dataset.cube[:, :, start_i:-end_i]
-            # dataset.h = h
-
         radius = int(min([dataset.h, dataset.w]) / 2)
 
-        dataset.X = utils.apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)  # dataset.X * mask
+        dataset.X = utils.apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)
         dataset.Y = utils.apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
         dataset.cube = utils.apply_circular_mask(dataset.cube, dataset.w, dataset.h, radius=radius)
-
-        # half_point = int(dataset.l / 2)
-        # Y_short = dataset.cube[:half_point, :, :]
-        # Y_long = dataset.cube[half_point:, :, :]
-        # Y_long = np.mean(Y_long, axis=(1, 2))
-        # dataset.Y = [Y_short, Y_long]
 
         # plt.imshow(np.nanmean(dataset.X, 0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
         # plt.show()
@@ -149,13 +113,12 @@ if __name__ == '__main__':
     bands = training_data.l
 
     endmember_count = 5
-
     # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count}
 
-    enc_params = {'enc_layer_count': 3,
+    enc_params = {'enc_layer_count': 2,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
                   'e_filter_count': 128,
@@ -167,6 +130,9 @@ if __name__ == '__main__':
 
     # Build and train a neural network
     nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=10000)
+
+
+
 
 
 # The rest is abandoned code saved for snippets if needed
