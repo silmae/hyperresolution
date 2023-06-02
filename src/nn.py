@@ -6,7 +6,7 @@ import math
 import os
 import numpy as np
 import h5py
-# import xarray as xr
+import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -182,7 +182,7 @@ def file_loader_rock(filepath):
     d = h5py.File(filepath, 'r')
     contents = list(d.keys())
     cube = np.transpose(d['/hdr'], (1, 2, 0))
-    cube = np.nan_to_num(cube, nan=0.5)  # Original rock images are masked with NaN, replace those with a number
+    cube = np.nan_to_num(cube, nan=1)  # Original rock images are masked with NaN, replace those with a number
 
     wavelengths = d['/wavelengths'][:]
 
@@ -204,7 +204,7 @@ def file_loader_luigi(filepath):
     data = xr.open_dataset(filepath)['reflectance']
     cube = data.values
 
-    # cube = cube[75:400, 75:400, 0:120]
+    cube = cube[75:300, 100:300, 0:120]
 
     # Sanity check plot
     plt.imshow(cube[:, :, 80])
@@ -348,9 +348,16 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     # sum_grad = torch.sum(mean_grad)
         #     return mean_grad
 
-        def cubeSAM(predcube, groundcube):  #TODO funktio!
+        def cubeSAM(predcube, groundcube):
             '''Calculate mean SAM of masked image cube. Omits the arccos, replacing it with subtracting result from 1'''
-            return 1
+            prednorm = torch.linalg.norm(predcube, dim=1)
+            groundnorm = torch.linalg.norm(groundcube, dim=1)
+            upper = torch.linalg.vecdot(predcube, groundcube, dim=1)
+            # lower = torch.linalg.vecdot(prednorm, groundnorm, dim=1)
+            lower = prednorm * groundnorm
+            cossimilarity = upper / lower
+            coserror = torch.sum(torch.abs(1 - cossimilarity))
+            return coserror
 
         short_y_true = y_true[:, :half_point, :, :]
         long_y_true = y_true[:, half_point:, :, :]
@@ -457,6 +464,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # Average the data for plotting over a few channels from the original cube and the reconstruction
             final_pred = torch.squeeze(final_pred)
             final_pred = final_pred.detach().cpu().numpy()
+            final_pred = utils.apply_circular_mask(final_pred, w, h)
+
             false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             for i in range(10):
