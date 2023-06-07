@@ -7,16 +7,30 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import spectral.io.envi as envi
 
 from src import nn
 from src import utils
-
-from torch.masked import masked_tensor
 
 
 if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
+    ############# SANDBOX ###############
+
+    img = envi.open('./datasets/DAWN/ENVI.hdr', "./datasets/DAWN/VIR_IR_1B_1_367111983_3.QUB")
+    img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_380500991_3.QUB")
+    img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_371371816_3.QUB")
+    # img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_368033917_3.QUB")
+    numpyimage = np.asarray(img.asarray())
+    numpyimage = np.nan_to_num(numpyimage, nan=0)
+    maksimi = np.max(numpyimage)
+    minimi = np.min(numpyimage)
+    # plt.imshow(np.mean(numpyimage, 2), vmin=0)#, vmin=-3.4e-38, vmax=0)
+    plt.imshow(numpyimage[:,:,400], vmin=0)
+    plt.show()
+
+    print('testing, testing')
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
