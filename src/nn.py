@@ -356,7 +356,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # lower = torch.linalg.vecdot(prednorm, groundnorm, dim=1)
             lower = prednorm * groundnorm
             cossimilarity = upper / lower
-            coserror = torch.sum(torch.abs(1 - cossimilarity))
+            coserror = torch.mean(torch.abs(1 - cossimilarity))
             return coserror
 
         short_y_true = y_true[:, :half_point, :, :]
@@ -378,7 +378,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
         # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
-        long_y_true = torch.mean(long_y_true, dim=(2, 3))
+        long_y_true = torch.mean(long_y_true, dim=(2, 3))  # TODO Move this calculation to preprocessing and only feed the mean spectrum into here
         long_y_true = torch.unsqueeze(long_y_true, 2)
         long_y_true = torch.unsqueeze(long_y_true, 3)
 
@@ -386,9 +386,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         long_y_pred = torch.unsqueeze(long_y_pred, 2)
         long_y_pred = torch.unsqueeze(long_y_pred, 3)
 
-        # loss_long = MAPE(long_y_true, long_y_pred)
         loss_long = metric_mape(long_y_pred, long_y_true)
         loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
+
+        short_y_pred_mean = torch.mean(short_y_pred, dim=(2, 3))
+        short_y_pred_mean = torch.unsqueeze(short_y_pred_mean, 2)
+        short_y_pred_mean = torch.unsqueeze(short_y_pred_mean, 3)
+
+        # loss_midpoint = torch.abs(short_y_pred_mean[:, -1] - long_y_pred[:, 0])
 
         # Calculate the gradients of predicted spectra to quantify the noise
         # loss_grad = mean_spectral_gradient(y_pred) - mean_spectral_gradient(y_true)
@@ -402,7 +407,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         # layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
 
-        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM  # + total_variation * 0.1 #+ loss_grad*2
+        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM # + loss_midpoint * 100  # + total_variation * 0.1 #+ loss_grad*2
 
         return loss_sum
 
