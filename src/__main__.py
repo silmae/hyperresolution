@@ -7,7 +7,6 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import spectral.io.envi as envi
 
 from src import nn
 from src import utils
@@ -16,21 +15,10 @@ from src import utils
 if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
+
     ############# SANDBOX ###############
 
-    img = envi.open('./datasets/DAWN/ENVI.hdr', "./datasets/DAWN/VIR_IR_1B_1_367111983_3.QUB")
-    img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_380500991_3.QUB")
-    img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_371371816_3.QUB")
-    # img = envi.open('./datasets/DAWN/ENVI2.hdr', "./datasets/DAWN/VIR_IR_1B_1_368033917_3.QUB")
-    numpyimage = np.asarray(img.asarray())
-    numpyimage = np.nan_to_num(numpyimage, nan=0)
-    maksimi = np.max(numpyimage)
-    minimi = np.min(numpyimage)
-    # plt.imshow(np.mean(numpyimage, 2), vmin=0)#, vmin=-3.4e-38, vmax=0)
-    plt.imshow(numpyimage[:,:,400], vmin=0)
-    plt.show()
-
-    print('testing, testing')
+    testin = utils.open_DAWN_VIR_IR_PDS3_as_ENVI('./datasets/DAWN/VIR_IR_1B_1_368033917_3.LBL')
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -55,75 +43,8 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
 
-    def crop_and_mask(dataset, aspect_ratio=1):
-
-        orig_w = dataset.w
-        orig_h = dataset.h
-        # Data dimension order is (l, w, h)
-
-        def cut_horizontally(dataset, h):
-            '''Make two horizontal cuts removing data from top and bottom rows of image'''
-            half_leftover = (orig_h - h) / 2
-            start_i = math.floor(half_leftover)
-            end_i = math.ceil(half_leftover)
-
-            dataset.X = dataset.X[:, :, start_i:-end_i]
-            dataset.Y = dataset.Y[:, :, start_i:-end_i]
-            dataset.cube = dataset.cube[:, :, start_i:-end_i]
-
-            dataset.h = h
-            return dataset
-
-        def cut_vertically(dataset, w):
-            '''Make two vertical cuts removing data from left and right of center'''
-            half_leftover = (orig_w - w) / 2
-            start_i = math.floor(half_leftover)
-            end_i = math.ceil(half_leftover)
-
-            dataset.X = dataset.X[:, start_i:-end_i, :]
-            dataset.Y = dataset.Y[:, start_i:-end_i, :]
-            dataset.cube = dataset.cube[:, start_i:-end_i, :]
-
-            dataset.w = w
-            return dataset
-
-        if orig_h > orig_w:  # if image is not horizontal or square, rotate 90 degrees
-            plt.imshow(np.nanmean(dataset.X, 0) + 1)
-            plt.show()
-            dataset.X = torch.rot90(dataset.X, dims=(1, 2))
-            dataset.Y = torch.rot90(dataset.Y, dims=(1, 2))
-            dataset.cube = np.rot90(dataset.cube, axes=(1, 2))
-
-            plt.imshow(np.nanmean(dataset.X, 0))  # The plot will appear in wrong orientation due to matplotlib expecting the indices in a certain order
-            plt.show()
-
-            dataset.w = orig_h
-            dataset.h = orig_w
-
-            orig_h = dataset.h
-            orig_w = dataset.w
-
-        if orig_w > int(orig_h * aspect_ratio):
-            h = orig_h
-            w = int(orig_h * aspect_ratio)
-            dataset = cut_vertically(dataset, w)
-        else:
-            h = int(orig_w * (1/aspect_ratio))
-            w = orig_w
-            dataset = cut_horizontally(dataset, h)
-
-        radius = int(min([dataset.h, dataset.w]) / 2)
-
-        dataset.X = utils.apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)
-        dataset.Y = utils.apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
-        dataset.cube = utils.apply_circular_mask(dataset.cube, dataset.w, dataset.h, radius=radius)
-
-        # plt.imshow(np.nanmean(dataset.X, 0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
-        # plt.show()
-
-        return dataset
-
-    training_data = crop_and_mask(training_data, aspect_ratio=6.7/5.4)
+    # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module  # TODO make radius comparable with AR
+    training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4, radius=100)
     bands = training_data.l
 
     endmember_count = 5
