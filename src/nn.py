@@ -24,11 +24,10 @@ import matplotlib.pyplot as plt
 from src import plotter
 from src import utils
 
-# Set manual seed when doing hyperparameter search for comparable results
-# between training runs.
+# Set manual seed for comparable results between training runs
 torch.manual_seed(42)
 
-bands = 80
+bands = 80  # TODO what?
 
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
@@ -110,15 +109,11 @@ class Encoder(nn.Module):
         self.activation = F.selu_
 
     def forward(self, x):
-        # for layer in self.layers:
-        #     x = self.activation(layer(x))
-        #     x = self.norm(x)
-        #     x = self.dropout(x) # dropout does not do good apparently
-        # out = self.soft_max(x)
 
         for i in range(self.enc_layer_count):
             x = self.activation(self.layers[i](x))
             x = self.norms[i](x)
+            # x = self.dropout(x)  # dropout does not do good apparently
 
         out = self.soft_max(x * 3.5)  # the magical constant is from Palsson's paper, there called alpha
 
@@ -204,11 +199,12 @@ def file_loader_luigi(filepath):
     data = xr.open_dataset(filepath)['reflectance']
     cube = data.values
 
+    #The image is very large, crop to get manageable training time
     cube = cube[75:300, 100:300, 0:120]
 
-    # Sanity check plot
-    plt.imshow(cube[:, :, 80])
-    plt.show()
+    # # Sanity check plot
+    # plt.imshow(cube[:, :, 80])
+    # plt.show()
 
     shape = cube.shape
     w = shape[1]
@@ -239,36 +235,18 @@ class TrainingData(Dataset):
         l_half = int(self.l / 2)
 
         # Dimensions of the image must be [batches, bands, width, height] for convolution
-        # We make transformation from [h, w, bands] in here once at the loading time.
+        # Transform from original [h, w, bands] with transpose
         self.cube = np.transpose(cube, (2, 1, 0))
 
         first_half = self.cube[:l_half, :, :]
 
         self.X = torch.from_numpy(first_half).float()
         self.Y = torch.from_numpy(self.cube).float()
-        # half_w = 50
-        # half_h = 50
-        # self.Xs = [
-        #     self.X[:, :half_h, :half_w],
-        #     self.X[:, half_h:half_h+half_h, half_w:half_w+half_w],
-        #     self.X[:, half_h:half_h+half_h, :half_w],
-        #     self.X[:, :half_h, half_w:half_w+half_w]
-        # ]
-        # self.Ys = [
-        #     self.Y[:, :half_h, :half_w],
-        #     self.Y[:, half_h:half_h + half_h, half_w:half_w + half_w],
-        #     self.Y[:, half_h:half_h + half_h, :half_w],
-        #     self.Y[:, :half_h, half_w:half_w + half_w]
-        # ]
 
     def __len__(self):
         return 1
 
     def __getitem__(self, idx):
-        # add one empty dimension https://stackoverflow.com/questions/57237381/runtimeerror-expected-4-dimensional-input-for-4-dimensional-weight-32-3-3-but
-        # convert to float (the same must be done for the NNs later https://discuss.pytorch.org/t/runtimeerror-expected-object-of-scalar-type-double-but-got-scalar-type-float-for-argument-2-weight/38961/9)
-        # return torch.unsqueeze(self.Xs[1], 0), torch.unsqueeze(self.Ys[1], 0)
-        # return self.Xs[1], self.Ys[1]
         return self.X, self.Y
 
 
@@ -373,8 +351,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         loss_short = metric_mape(short_y_pred, short_y_true)
         # loss_short_SAM = metric_SAM(short_y_pred, short_y_true)  # Using this function for masked cube breaks backprop: "RuntimeError: Function 'CatBackward0' returned nan values in its 0th output."
-        # # loss_short_SAM = torch.nan_to_num(loss_short_SAM)
-        # loss_short_SAM = torch.mean(loss_short_SAM)
         loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
         # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
@@ -389,25 +365,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         loss_long = metric_mape(long_y_pred, long_y_true)
         loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
 
-        short_y_pred_mean = torch.mean(short_y_pred, dim=(2, 3))
-        short_y_pred_mean = torch.unsqueeze(short_y_pred_mean, 2)
-        short_y_pred_mean = torch.unsqueeze(short_y_pred_mean, 3)
-
-        # loss_midpoint = torch.abs(short_y_pred_mean[:, -1] - long_y_pred[:, 0])
-
-        # Calculate the gradients of predicted spectra to quantify the noise
-        # loss_grad = mean_spectral_gradient(y_pred) - mean_spectral_gradient(y_true)
-        # grad = dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :]
-        # total_variation = torch.sum(torch.square(grad))
-        # print(f'TV: {total_variation}')
-
+        # # TV over endmember spectra
         # total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
 
+        # # TV over output spectra
         # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
 
-        # layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
-
-        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM # + loss_midpoint * 100  # + total_variation * 0.1 #+ loss_grad*2
+        # Loss as sum of the calculated components
+        loss_sum = loss_short + loss_long + loss_long_SAM + loss_short_SAM
 
         return loss_sum
 
@@ -462,15 +427,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
-            endmembers_mid = endmembers[:, :, 6, 6]
+            endmembers_mid = endmembers[:, :, 6, 6]  # TODO replace the hardcoded incides! The spectra are not the middle ones!
             plotter.plot_endmembers(endmembers_mid, epoch)
 
-            # pick 3 channels to plot as false color images
-            # Average the data for plotting over a few channels from the original cube and the reconstruction
             final_pred = torch.squeeze(final_pred)
             final_pred = final_pred.detach().cpu().numpy()
-            final_pred = utils.apply_circular_mask(final_pred, w, h)
+            final_pred = utils.apply_circular_mask(final_pred, w, h)  # Use same circular mask on the output
 
+            # Construct 3 channels to plot as false color images
+            # Average the data for plotting over a few channels from the original cube and the reconstruction
             false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             for i in range(10):
@@ -501,12 +466,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     if spectral_angle < best_SAM:
                         best_SAM = spectral_angle
                         best_indices = (i, j)
-                    if spectral_angle > worst_SAM:
+                    if spectral_angle > worst_SAM and np.mean(orig) != 0:
                         worst_SAM = spectral_angle
                         worst_indices = (i, j)
-
-                    # if i == 20 and j == 20:
-                    #     plotter.plot_spectra(orig, pred, epoch)
 
             plotter.plot_SAM(spectral_angles, epoch)
             plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]], final_pred[:, worst_indices[0], worst_indices[1]], epoch, tag='worst')
