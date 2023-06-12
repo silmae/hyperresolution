@@ -28,6 +28,6 @@ dependencies:
   - torchmetrics
   - pip
   - pip:
-#      - spectral # for image cube read and write
+      - spectral # for image cube read and write
 #      - spectres # for resampling spectra
 #      - Pillow
