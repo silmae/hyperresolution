@@ -117,19 +117,19 @@ def crop_and_mask(dataset, aspect_ratio=1, radius=None):
     if radius is None:  # if no radius is given, use the minimum of h and w after cropping
         radius = int(min([dataset.h, dataset.w]) / 2)
 
-    # Plot before and after mask is applied
-    plt.imshow(np.nanmean(dataset.X,
-                          0))  # The plot will appear in wrong orientation due to matplotlib expecting the indices in a certain order
-    plt.show()
+    # # Plot before and after mask is applied
+    # plt.imshow(np.nanmean(dataset.X,
+    #                       0))  # The plot will appear in wrong orientation due to matplotlib expecting the indices in a certain order
+    # plt.show()
 
     dataset.X = apply_circular_mask(dataset.X, dataset.w, dataset.h, radius=radius)
     dataset.Y = apply_circular_mask(dataset.Y, dataset.w, dataset.h, radius=radius)
     dataset.cube = apply_circular_mask(dataset.cube, dataset.w, dataset.h, radius=radius)
 
-    # Sanity check plot
-    plt.imshow(np.nanmean(dataset.X,
-                          0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
-    plt.show()
+    # # Sanity check plot
+    # plt.imshow(np.nanmean(dataset.X,
+    #                       0) + 1)  # matplotlib wants its dimensions in a different order, which makes the plot look like h and w are mixed
+    # plt.show()
 
     return dataset
 
@@ -146,6 +146,8 @@ def open_DAWN_VIR_IR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154
     """
 
     # Replace file extension to get paths for ENVI header and the QUBE file associated with the label
+    if type(label_path) is not str:
+        label_path = str(label_path)
     hdr_path = label_path[:-3] + 'hdr'
     qube_path = label_path[:-3] + 'QUB'
 
@@ -264,7 +266,9 @@ def open_DAWN_VIR_IR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154
                     '0.0177,0.0178,0.0178,0.0179,0.0180,0.0180,0.0181,0.0181,0.0182,0.0183,0.0183,\n' 
                     '0.0184,0.0185,0.0185,0.0186}')
 
+    # Open the qube as ENVI using the created header
     img = envi.open(hdr_path, qube_path)
+
     numpyimage = np.asarray(img.asarray())
     numpyimage = np.nan_to_num(numpyimage, nan=0)
     numpyimage = np.clip(numpyimage, a_min=0, a_max=100)  # Without clipping the minimum is -32 767: this values is used in original processing to mark bad pixels
@@ -272,4 +276,4 @@ def open_DAWN_VIR_IR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154
     plt.imshow(np.mean(numpyimage, axis=2), vmin=0)
     plt.show()
 
-    return numpyimage
+    return numpyimage, img  # Return both the numpy array and the whole ENVI thing
