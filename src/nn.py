@@ -216,6 +216,26 @@ def file_loader_luigi(filepath):
     return h, w, l, cube, wavelengths
 
 
+def file_loader_DAWN(filepath):
+    cube, data = utils.open_DAWN_VIR_IR_PDS3_as_ENVI(filepath)
+
+    # Crop the cube a bit in horizontal direction
+    cube = cube[:, :100, :]
+
+    # # Sanity check plot
+    # plt.imshow(cube[:, :, 80])
+    # plt.show()
+
+    shape = cube.shape
+    w = shape[1]
+    h = shape[0]
+    l = shape[2]
+
+    wavelengths = data.metadata['wavelength']
+
+    return h, w, l, cube, wavelengths
+
+
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
@@ -227,6 +247,8 @@ class TrainingData(Dataset):
             h, w, l, cube, wavelengths = file_loader_rock(filepath)
         elif type == 'luigi':
             h, w, l, cube, wavelengths = file_loader_luigi(filepath)
+        elif type == 'DAWN':
+            h, w, l, cube, wavelengths = file_loader_DAWN(filepath)
 
         self.w = w
         self.h = h
@@ -452,7 +474,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             spectral_angles = np.zeros((shape[1], shape[2]))
             best_SAM = 5
             best_indices = (0, 0)
-            worst_SAM = 5 # np.zeros((shape[0], 1))
+            worst_SAM = 1e-5 # np.zeros((shape[0], 1))
             worst_indices = (0, 0)
 
             for i in range(shape[1]):
@@ -466,7 +488,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     if spectral_angle < best_SAM:
                         best_SAM = spectral_angle
                         best_indices = (i, j)
-                    if spectral_angle > worst_SAM and np.mean(orig) != 0:
+                    if spectral_angle > worst_SAM and np.mean(orig) != 1:
                         worst_SAM = spectral_angle
                         worst_indices = (i, j)
 
