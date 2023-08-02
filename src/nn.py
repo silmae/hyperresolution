@@ -122,17 +122,18 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, band_count=200, endmember_count=3):
+    def __init__(self, band_count=200, endmember_count=3, kernel_size=13):
         super(Decoder, self).__init__()
 
         self.band_count = band_count
         self.endmember_count = endmember_count
+        self.kernel_size = kernel_size
         self.layers = nn.ModuleList()
 
         self.layers.append(
             nn.Conv2d(in_channels=self.endmember_count,
                       out_channels=self.band_count,
-                      kernel_size=13,
+                      kernel_size=self.kernel_size,
                       padding='same',
                       stride=1,
                       bias=False)
@@ -449,7 +450,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
-            endmembers_mid = endmembers[:, :, 6, 6]  # TODO replace the hardcoded incides! The spectra are not the middle ones!
+            endmembers_mid = endmembers[:, :, 6, 6]  # TODO replace the hardcoded incides! The spectra should always be the middle ones!
             plotter.plot_endmembers(endmembers_mid, epoch)
 
             final_pred = torch.squeeze(final_pred)
