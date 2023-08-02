@@ -23,35 +23,37 @@ if __name__ == '__main__':
     #  Treenaa verkkoa tuolla datalla ja katso kuinka käy
     #  Kanavien ja aallonpituusalueen muokkaus vastaamaan ASPECTia
     #  Hyperparameterioptimointi, varmaankin ray tunella
+    #       Treeni normaalisti, mutta optimoinnin tavoite täytyy olla muuta kuin val_loss: tee erillinen test -funktio,
+    #       jolla katsotaan kuinka hyvin treenattu verkko rekonstruoi kuvan
 
     ############# SANDBOX ###############
 
     # testin = utils.open_DAWN_VIR_IR_PDS3_as_ENVI('./datasets/DAWN/VIR_IR_1B_1_368033917_3.LBL')
 
-    # TODO Make a function for opening these ISIS cube files. Will most likely need to tailor
-    #  the angle for rotation and the crop indices for each image.
-    #  Also write a function for feeding that data to the network.
-
-    isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_589173531_1.cub")
-    # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_487367451_1.cub")
-    # isisimage = CubeFile.open("./datasets/DAWN/f-VIR_IR_1B_1_483703316_1.cub")
-
-    showable = isisimage.data[100, :, :]  # pick one channel for plotting
-    showable = np.clip(showable, 0, 1000)  # clip to get rid of the absurd masking values
-    showable = ndimage.rotate(showable, 45, mode='constant')  # rotate to get the interesting are horizontal
-    showable = showable[300:600, 200:700]  # crop the masking values away
-
-    plt.imshow(showable, vmin=0)
-    plt.show()
-
-    print('stop')
+    # # TODO Make a function for opening these ISIS cube files. Will most likely need to tailor
+    # #  the angle for rotation and the crop indices for each image.
+    # #  Also write a function for feeding that data to the network.
+    #
+    # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_589173531_1.cub")
+    # # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_487367451_1.cub")
+    # # isisimage = CubeFile.open("./datasets/DAWN/f-VIR_IR_1B_1_483703316_1.cub")
+    #
+    # showable = isisimage.data[100, :, :]  # pick one channel for plotting
+    # showable = np.clip(showable, 0, 1000)  # clip to get rid of the absurd masking values
+    # showable = ndimage.rotate(showable, 45, mode='constant')  # rotate to get the interesting area horizontal
+    # showable = showable[300:600, 200:700]  # crop the masking values away
+    #
+    # plt.imshow(showable, vmin=0)
+    # plt.show()
+    #
+    # print('stop')
 
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -64,10 +66,10 @@ if __name__ == '__main__':
 
         print(f"Name of current CUDA device: {torch.cuda.get_device_name(cuda_id)}")
 
-    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
-    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
+    # training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
 
     # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module  # TODO make radius comparable with aspect ratio
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
@@ -87,10 +89,11 @@ if __name__ == '__main__':
                   'kernel_reduction': 2}
 
     dec_params = {'band_count': common_params['bands'],
-                  'endmember_count': common_params['endmember_count']}
+                  'endmember_count': common_params['endmember_count'],
+                  'kernel_size': 13}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=1000)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=100)
 
 
 
