@@ -1,14 +1,14 @@
 from pathlib import Path
 import logging
-import sys
 import os
 import math
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage, misc
 import torch
-from planetaryimage import CubeFile
+# from planetaryimage import CubeFile
 
 from src import nn
 from src import utils
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -81,11 +81,11 @@ if __name__ == '__main__':
     common_params = {'bands': bands,
                      'endmember_count': endmember_count}
 
-    enc_params = {'enc_layer_count': 2,
+    enc_params = {'enc_layer_count': 6,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 128,
-                  'kernel_size': 5,
+                  'e_filter_count': 512,
+                  'kernel_size': 13,
                   'kernel_reduction': 2}
 
     dec_params = {'band_count': common_params['bands'],
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                   'kernel_size': 13}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=5000)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=40000)
 
 
 

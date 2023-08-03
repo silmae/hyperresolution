@@ -449,8 +449,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             test_score = test_fn(y, dec_pred)
             test_item = test_score.item()
 
-        logging.info(f"Epoch {epoch} loss: {loss_item}")
-        logging.info(f"Epoch {epoch} test: {test_item}")
+        logging.info(f"Epoch {epoch}/{n_epochs} loss: {loss_item}")
+        logging.info(f"Epoch {epoch}/{n_epochs} test: {test_item}")
         train_losses.append(loss_item)
         test_scores.append(test_item)
 
