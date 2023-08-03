@@ -300,6 +300,17 @@ def init_network(enc_params, dec_params, common_params):
     return enc, dec
 
 
+def cubeSAM(predcube, groundcube):
+    '''Calculate mean SAM of masked image cube. Omits the arccos, replacing it with subtracting result from 1'''
+    prednorm = torch.linalg.norm(predcube, dim=1)
+    groundnorm = torch.linalg.norm(groundcube, dim=1)
+    upper = torch.linalg.vecdot(predcube, groundcube, dim=1)
+    # lower = torch.linalg.vecdot(prednorm, groundnorm, dim=1)
+    lower = prednorm * groundnorm
+    cossimilarity = upper / lower
+    coserror = torch.mean(torch.abs(1 - cossimilarity))
+    return coserror
+
 def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True):
 
     bands = training_data.l
@@ -349,17 +360,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     # sum_grad = torch.sum(mean_grad)
         #     return mean_grad
 
-        def cubeSAM(predcube, groundcube):
-            '''Calculate mean SAM of masked image cube. Omits the arccos, replacing it with subtracting result from 1'''
-            prednorm = torch.linalg.norm(predcube, dim=1)
-            groundnorm = torch.linalg.norm(groundcube, dim=1)
-            upper = torch.linalg.vecdot(predcube, groundcube, dim=1)
-            # lower = torch.linalg.vecdot(prednorm, groundnorm, dim=1)
-            lower = prednorm * groundnorm
-            cossimilarity = upper / lower
-            coserror = torch.mean(torch.abs(1 - cossimilarity))
-            return coserror
-
         short_y_true = y_true[:, :half_point, :, :]
         long_y_true = y_true[:, half_point:, :, :]
 
@@ -399,6 +399,16 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         return loss_sum
 
+    def test_fn(predcube, groundcube):
+        """Calculate a test score for a prediction by comparing the predicted cube to a ground truth one.
+        Very similar to loss_fn, but the long wavelengths are not averaged into single spectrum.
+        N.B. This sort of testing is not possible if the approach is ever applied in practice!"""
+        score_SAM = cubeSAM(predcube, groundcube)
+        metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
+        score_MAPE = metric_MAPE(predcube, groundcube)
+
+        return score_SAM + score_MAPE
+
     # FROM https://medium.com/dataseries/convolutional-autoencoder-in-pytorch-on-mnist-dataset-d65145c132ac
     params_to_optimize = [
         {'params': enc.parameters()},
@@ -407,7 +417,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
     optimizer = torch.optim.Adam(params_to_optimize)
 
+    # For storing performance results
     train_losses = []
+    test_scores = []
 
     n_epochs = epochs
     best_loss = 1e10
@@ -434,8 +446,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             loss_item = loss.item()
 
+            test_score = test_fn(y, dec_pred)
+            test_item = test_score.item()
+
         logging.info(f"Epoch {epoch} loss: {loss_item}")
+        logging.info(f"Epoch {epoch} test: {test_item}")
         train_losses.append(loss_item)
+        test_scores.append(test_item)
+
         if loss_item < best_loss:
             best_loss = loss_item
             best_index = epoch
@@ -499,7 +517,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)], final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], epoch, tag='middle')
             plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True, epoch=epoch)
 
-    plotter.plot_nn_train_history(train_losses, best_index, file_name='nn_history', log_y=True)
+    plotter.plot_nn_train_history(train_losses, best_index, test_scores=test_scores, file_name='nn_history', log_y=True)
 
     return best_loss
 

@@ -93,7 +93,7 @@ if __name__ == '__main__':
                   'kernel_size': 13}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=100)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=5000)
 
 
 

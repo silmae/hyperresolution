@@ -173,7 +173,7 @@ def plot_endmembers(endmembers, epoch):
 
 
 def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumbnail=True,
-                          file_name="nn_train_history.png", log_y = False) -> None:
+                          test_scores=None, file_name="nn_train_history.png", log_y = False) -> None:
     """Plot training history of neural network.
 
     :param train_loss:
@@ -185,6 +185,8 @@ def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumb
         running multiple times in a loop (hyperparameter tuning). Default True.
     :param save_thumbnail:
         If True, save plot to disk. Default True.
+    :param test_scores:
+        Scores from testing the network, not needed for the train history plot. Default is None.
     :param file_name:
         Filename for saving the plot. Postfix '.png' is added if missing. Default name is "nn_train_history.png".
     :param log_y:
@@ -192,15 +194,30 @@ def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumb
     :return:
     """
 
-
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize_single)
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=figsize_single)
     fig.suptitle(f"Training history", fontsize=fig_title_font_size)
-    ax.plot(train_loss, label="Training loss")
+    # ax1.plot(train_loss, label="Training loss")
+    color = 'tab:orange'
+    ax1.set_xlabel('Epoch', fontsize=axis_label_font_size)
+    ax1.set_ylabel('Training loss', color=color)
+    ax1.plot(train_loss, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
     if log_y == True:
-        ax.set_yscale('log')
-    ax.scatter(best_epoch_idx, train_loss[best_epoch_idx], facecolors='none', edgecolors='r')
-    ax.set_xlabel('Epoch', fontsize=axis_label_font_size)
-    ax.legend()
+        ax1.set_yscale('log')
+    ax1.scatter(best_epoch_idx, train_loss[best_epoch_idx], facecolors='none', edgecolors='r')
+    # ax1.legend()
+
+    if test_scores is not None:
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        color = 'tab:blue'
+        ax2.set_ylabel('Test loss', color=color)  # we already handled the x-label with ax1
+        ax2.plot(test_scores, color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        if log_y == True:
+            ax2.set_yscale('log')
+    fig.tight_layout()
 
     if save_thumbnail:
         if not file_name.endswith(".png"):
