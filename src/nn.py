@@ -21,6 +21,10 @@ import torchmetrics
 import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
 
+from ray import air, tune
+from ray.air import session
+from ray.tune.schedulers import ASHAScheduler
+
 from src import plotter
 from src import utils
 
@@ -311,7 +315,7 @@ def cubeSAM(predcube, groundcube):
     coserror = torch.mean(torch.abs(1 - cossimilarity))
     return coserror
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True):
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, tune=False):
 
     bands = training_data.l
     half_point = int(bands/2)
@@ -453,6 +457,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         logging.info(f"Epoch {epoch}/{n_epochs} test: {test_item}")
         train_losses.append(loss_item)
         test_scores.append(test_item)
+
+        # If tuning hyperparameters, report test score back to Ray
+        if tune:
+            session.report({"test_loss": test_item})
 
         if loss_item < best_loss:
             best_loss = loss_item

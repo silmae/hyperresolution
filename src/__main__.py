@@ -10,6 +10,12 @@ from scipy import ndimage, misc
 import torch
 # from planetaryimage import CubeFile
 
+import ray
+from ray import air, tune
+from ray.air import session
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
+
 from src import nn
 from src import utils
 
@@ -53,7 +59,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -78,22 +84,88 @@ if __name__ == '__main__':
     endmember_count = 5
     # endmember_count = training_data.abundance_count
 
-    common_params = {'bands': bands,
-                     'endmember_count': endmember_count}
+    # common_params = {'bands': bands,
+    #                  'endmember_count': endmember_count}
+    #
+    # enc_params = {'enc_layer_count': 2,
+    #               'band_count': int(common_params['bands'] / 2),
+    #               'endmember_count': common_params['endmember_count'],
+    #               'e_filter_count': 128,
+    #               'kernel_size': 9,
+    #               'kernel_reduction': 2}
+    #
+    # dec_params = {'band_count': common_params['bands'],
+    #               'endmember_count': common_params['endmember_count'],
+    #               'kernel_size': 9}
+    #
+    # # # Build and train a neural network
+    # nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=1000, tune=False)
 
-    enc_params = {'enc_layer_count': 6,
-                  'band_count': int(common_params['bands'] / 2),
-                  'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 512,
-                  'kernel_size': 13,
-                  'kernel_reduction': 2}
+    # Tuning network hyperparameters with Ray Tune
+    search_space = {
+        'bands': bands,
+        'endmember_count': tune.choice([4, 6, 8]),
+        'enc_layer_count': tune.choice([2, 4]),
+        'e_filter_count': tune.choice([32, 128, 512]),
+        'enc_kernel_size': tune.choice([9, 13]),
+        'enc_kernel_reduction': 2,
+        'dec_kernel_size': tune.choice([9, 13]),
+    }
 
-    dec_params = {'band_count': common_params['bands'],
-                  'endmember_count': common_params['endmember_count'],
-                  'kernel_size': 13}
+    # Uncomment this to enable distributed execution
+    'ray.init(address="auto")'
 
-    # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=40000)
+    def train_for_tuning(config):
+        common_params = {'bands': config['bands'],
+                         'endmember_count': config['endmember_count']}
+        enc_params = {'enc_layer_count': config['enc_layer_count'],
+                      'band_count': int(common_params['bands'] / 2),
+                      'endmember_count': common_params['endmember_count'],
+                      'e_filter_count': config['e_filter_count'],
+                      'kernel_size': config['enc_kernel_size'],
+                      'kernel_reduction': config['enc_kernel_reduction']}
+        dec_params = {'band_count': common_params['bands'],
+                      'endmember_count': common_params['endmember_count'],
+                      'kernel_size': config['dec_kernel_size']}
+
+        nn.train(training_data,
+                 enc_params=enc_params,
+                 dec_params=dec_params,
+                 common_params=common_params,
+                 epochs=5000,
+                 plots=False,
+                 tune=True
+                 )
+
+
+    trainable_with_gpu = tune.with_resources(train_for_tuning, {"gpu": 1})
+
+    # tuner = tune.Tuner(
+    #     trainable_with_gpu,
+    #     tune_config=tune.TuneConfig(
+    #         num_samples=20,
+    #         scheduler=ASHAScheduler(mode="max"),
+    #     ),
+    #     param_space=search_space,
+    # )
+    tuner = tune.Tuner(
+        trainable_with_gpu,
+        tune_config=tune.TuneConfig(
+            search_alg=OptunaSearch(),
+            num_samples=10,
+            metric="test_loss",
+            mode="min",
+        ),
+        param_space=search_space,
+    )
+    # tuner = tune.Tuner(
+    #     trainable_with_gpu,
+    #     param_space=search_space,
+    # )
+
+    results = tuner.fit()
+
+
 
 
 
