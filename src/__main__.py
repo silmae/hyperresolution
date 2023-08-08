@@ -115,6 +115,7 @@ if __name__ == '__main__':
     # Uncomment this to enable distributed execution
     'ray.init(address="auto")'
 
+    epochs = 10000
     def train_for_tuning(config):
         common_params = {'bands': config['bands'],
                          'endmember_count': config['endmember_count']}
@@ -132,7 +133,7 @@ if __name__ == '__main__':
                  enc_params=enc_params,
                  dec_params=dec_params,
                  common_params=common_params,
-                 epochs=5000,
+                 epochs=epochs,
                  plots=False,
                  tune=True
                  )
@@ -143,8 +144,8 @@ if __name__ == '__main__':
     # tuner = tune.Tuner(
     #     trainable_with_gpu,
     #     tune_config=tune.TuneConfig(
-    #         num_samples=20,
-    #         scheduler=ASHAScheduler(mode="max"),
+    #         num_samples=30,
+    #         scheduler=ASHAScheduler(metric="test_loss", mode="min", max_t=epochs),
     #     ),
     #     param_space=search_space,
     # )
@@ -152,7 +153,7 @@ if __name__ == '__main__':
         trainable_with_gpu,
         tune_config=tune.TuneConfig(
             search_alg=OptunaSearch(),
-            num_samples=10,
+            num_samples=20,
             metric="test_loss",
             mode="min",
         ),
