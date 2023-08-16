@@ -410,8 +410,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
         score_MAPE = metric_MAPE(predcube, groundcube)
-
+        # TODO calculate penalty for noise in output spectra
         return score_SAM + score_MAPE
+
 
     # FROM https://medium.com/dataseries/convolutional-autoencoder-in-pytorch-on-mnist-dataset-d65145c132ac
     params_to_optimize = [
@@ -428,6 +429,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     n_epochs = epochs
     best_loss = 1e10
     best_index = 0
+
+    best_test_loss = 1e10
+    best_test_index = 0
 
     final_pred = None
 
@@ -458,13 +462,17 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         train_losses.append(loss_item)
         test_scores.append(test_item)
 
-        # If tuning hyperparameters, report test score back to Ray
-        if tune:
-            session.report({"test_loss": test_item})
+        # # If tuning hyperparameters, report test score back to Ray
+        # if tune:
+        #     session.report({"test_loss": test_item})
 
         if loss_item < best_loss:
             best_loss = loss_item
             best_index = epoch
+
+        if loss_item < best_test_loss:
+            best_test_loss = loss_item
+            best_test_index = epoch
 
             # # This will save the whole shebang, which is a bit stupid
             # enc_save_name = "encoder.pt"
@@ -525,8 +533,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)], final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], epoch, tag='middle')
             plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True, epoch=epoch)
 
-    plotter.plot_nn_train_history(train_losses, best_index, test_scores=test_scores, file_name='nn_history', log_y=True)
+    plotter.plot_nn_train_history(train_losses, best_index, best_test_index, test_scores=test_scores, file_name='nn_history', log_y=True)
 
-    return best_loss
+    return best_loss, best_test_loss
 
 
