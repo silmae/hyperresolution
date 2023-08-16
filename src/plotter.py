@@ -172,14 +172,16 @@ def plot_endmembers(endmembers, epoch):
     plt.close(fig)
 
 
-def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumbnail=True,
+def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, dont_show=True, save_thumbnail=True,
                           test_scores=None, file_name="nn_train_history.png", log_y = False) -> None:
     """Plot training history of neural network.
 
     :param train_loss:
         List of training losses (per epoch).
     :param best_epoch_idx:
-        Index of best epoch for highlighting.
+        Index of best epoch for highlighting, according to training data.
+    :param best_test_epoch_idx:
+        Index of best epoch for highlighting, according to test data.
     :param dont_show:
         If true, does not show the interactive plot (that halts excecution). Always use True when
         running multiple times in a loop (hyperparameter tuning). Default True.
@@ -205,7 +207,7 @@ def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumb
 
     if log_y == True:
         ax1.set_yscale('log')
-    ax1.scatter(best_epoch_idx, train_loss[best_epoch_idx], facecolors='none', edgecolors='r')
+    ax1.scatter(best_epoch_idx, train_loss[best_epoch_idx], facecolors='none', edgecolors='g')
     # ax1.legend()
 
     if test_scores is not None:
@@ -217,6 +219,8 @@ def plot_nn_train_history(train_loss, best_epoch_idx, dont_show=True, save_thumb
         ax2.tick_params(axis='y', labelcolor=color)
         if log_y == True:
             ax2.set_yscale('log')
+        ax2.scatter(best_test_epoch_idx, test_scores[best_test_epoch_idx], facecolors='none', edgecolors='r')
+
     fig.tight_layout()
 
     if save_thumbnail:
