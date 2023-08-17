@@ -3,6 +3,7 @@ import logging
 import os
 import math
 import sys
+from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,11 +11,6 @@ from scipy import ndimage, misc
 import torch
 # from planetaryimage import CubeFile
 
-import ray
-from ray import air, tune
-from ray.air import session
-from ray.tune.schedulers import ASHAScheduler
-from ray.tune.search.optuna import OptunaSearch
 import optuna
 
 from src import nn
@@ -25,13 +21,20 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
+    # Save logs into file
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)  # Setup the root logger.
+
+    now = datetime.now()
+    filename = now.strftime("%Y-%M-%d_%H:%M:%S")
+
+    logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
+
     # TODO Vinkkejä mistä jatkaa tätä projektia:
     #  ISIS kuution avaaminen funktiossa ja tuon datan syöttö verkolle toisella funktiolla
     #  Treenaa verkkoa tuolla datalla ja katso kuinka käy
     #  Kanavien ja aallonpituusalueen muokkaus vastaamaan ASPECTia
-    #  Hyperparameterioptimointi, varmaankin ray tunella
-    #       Treeni normaalisti, mutta optimoinnin tavoite täytyy olla muuta kuin val_loss: tee erillinen test -funktio,
-    #       jolla katsotaan kuinka hyvin treenattu verkko rekonstruoi kuvan
+
     # Cross test for two images
     ############# SANDBOX ###############
 
@@ -60,7 +63,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "4"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -102,101 +105,45 @@ if __name__ == '__main__':
     # # # Build and train a neural network
     # nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=1000, tune=False)
 
-    epochs = 100
+    epochs = 10000
 
     # Optuna without ray
     def objective(trial):
 
         common_params = {'bands': bands,
-                         'endmember_count': trial.suggest_int('endmember_count', 3, 8),}
+                         'endmember_count': trial.suggest_int('endmember_count', 3, 8)}  # TODO optimize this separately?
 
-        enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 3),
+        enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 6),
                       'band_count': int(common_params['bands'] / 2),
                       'endmember_count': common_params['endmember_count'],
                       'e_filter_count': trial.suggest_int('e_filter_count', 16, 512),
-                      'kernel_size': 9,
-                      'kernel_reduction': 2}
+                      'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 15),
+                      'kernel_reduction': trial.suggest_categorical('kernel_reduction', [0, 2, 4])}
 
         dec_params = {'band_count': common_params['bands'],
-                      'endmember_count': common_params['endmember_count'],
-                      'kernel_size': 9}
+                      'd_endmember_count': common_params['endmember_count'],
+                      'd_kernel_size': trial.suggest_int('d_kernel_size', 3, 15)}
 
-        best_loss, best_test_loss = nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=epochs, tune=False)
+        best_loss, best_test_loss = nn.train(training_data,
+                                             enc_params=enc_params,
+                                             dec_params=dec_params,
+                                             common_params=common_params,
+                                             epochs=epochs,
+                                             plots=False,
+                                             prints=True)
 
         return best_test_loss
 
+    optuna.logging.enable_propagation()  # Propagate logs to the root logger.
+    optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
 
     # Create a study object and optimize the objective function.
     study = optuna.create_study(direction='minimize')
-    study.optimize(objective, n_trials=5)
+    study.optimize(objective, n_trials=100)
 
-    # # HP optimization with ray tune
-
-    # Tuning network hyperparameters with Ray Tune
-    # search_space = {
-    #     'bands': bands,
-    #     'endmember_count': tune.choice([4, 6, 8]),  # TODO optimize this separately (in the future)?
-    #     'enc_layer_count': tune.choice([2, 4]),
-    #     'e_filter_count': tune.choice([32, 128, 512]),
-    #     'enc_kernel_size': tune.choice([9, 13]),
-    #     'enc_kernel_reduction': 2,
-    #     'dec_kernel_size': tune.choice([9, 13]),
-    # }
-
-    # # Uncomment this to enable distributed execution
-    # 'ray.init(address="auto")'
-
-    # def train_for_tuning(config):
-    #     common_params = {'bands': config['bands'],
-    #                      'endmember_count': config['endmember_count']}
-    #     enc_params = {'enc_layer_count': config['enc_layer_count'],
-    #                   'band_count': int(common_params['bands'] / 2),
-    #                   'endmember_count': common_params['endmember_count'],
-    #                   'e_filter_count': config['e_filter_count'],
-    #                   'kernel_size': config['enc_kernel_size'],
-    #                   'kernel_reduction': config['enc_kernel_reduction']}
-    #     dec_params = {'band_count': common_params['bands'],
-    #                   'endmember_count': common_params['endmember_count'],
-    #                   'kernel_size': config['dec_kernel_size']}
-    #
-    #     nn.train(training_data,
-    #              enc_params=enc_params,
-    #              dec_params=dec_params,
-    #              common_params=common_params,
-    #              epochs=epochs,
-    #              plots=False,
-    #              tune=True
-    #              )
-
-    # trainable_with_gpu = tune.with_resources(train_for_tuning, {"gpu": 1})
-
-    # tuner = tune.Tuner(
-    #     trainable_with_gpu,
-    #     tune_config=tune.TuneConfig(
-    #         num_samples=30,
-    #         scheduler=ASHAScheduler(metric="test_loss", mode="min", max_t=epochs),
-    #     ),
-    #     param_space=search_space,
-    # )
-    # tuner = tune.Tuner(
-    #     trainable_with_gpu,
-    #     tune_config=tune.TuneConfig(
-    #         search_alg=OptunaSearch(),
-    #         num_samples=20,
-    #         metric="test_loss",
-    #         mode="min",
-    #     ),
-    #     param_space=search_space,
-    # )
-    # tuner = tune.Tuner(
-    #     trainable_with_gpu,
-    #     param_space=search_space,
-    # )
-
-    # results = tuner.fit()
-
-
-
+    # with open(f"{filename}.log") as f:
+    #     assert f.readline().startswith("A new study created")
+    #     assert f.readline() == "Start optimization.\n"
 
 
 

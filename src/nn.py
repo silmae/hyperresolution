@@ -21,10 +21,6 @@ import torchmetrics
 import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
 
-from ray import air, tune
-from ray.air import session
-from ray.tune.schedulers import ASHAScheduler
-
 from src import plotter
 from src import utils
 
@@ -64,7 +60,7 @@ def SAM(s1, s2):
 
 class Encoder(nn.Module):
 
-    def __init__(self, enc_layer_count = 3, e_filter_count=48, kernel_size=7, kernel_reduction=2, band_count=100, endmember_count=3):
+    def __init__(self, enc_layer_count = 3, e_filter_count=48, e_kernel_size=7, kernel_reduction=2, band_count=100, endmember_count=3):
         super(Encoder, self).__init__()
 
         self.band_count = band_count
@@ -75,21 +71,23 @@ class Encoder(nn.Module):
         self.filter_counts = []
         for i in range(enc_layer_count-1):
             self.filter_counts.append(e_filter_count)
-            e_filter_count = int(e_filter_count / 2)
+            if e_filter_count >= 2:
+                e_filter_count = int(e_filter_count / 2)
 
         # self.layers.append(nn.Conv3d(in_channels=band_count, out_channels=band_count, kernel_size=(3,3,3), padding='same'))
         # self.layers.append(nn.Flatten())
         self.layers.append(nn.Conv2d(in_channels=band_count,
                                      out_channels=self.filter_counts[0],
-                                     kernel_size=kernel_size, padding='same',
+                                     kernel_size=e_kernel_size, padding='same',
                                      stride=1,
                                      bias=False))
         if enc_layer_count > 2:
             for i in range(1, enc_layer_count-1):
-                kernel_size = kernel_size - kernel_reduction
+                if e_kernel_size - kernel_reduction >= 1:
+                    e_kernel_size = e_kernel_size - kernel_reduction
                 self.layers.append(nn.Conv2d(in_channels=self.filter_counts[i-1],
                                              out_channels=self.filter_counts[i],
-                                             kernel_size=kernel_size, padding='same',
+                                             kernel_size=e_kernel_size, padding='same',
                                              stride=1,
                                              bias=False))
 
@@ -126,12 +124,12 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, band_count=200, endmember_count=3, kernel_size=13):
+    def __init__(self, band_count=200, endmember_count=3, d_kernel_size=13):
         super(Decoder, self).__init__()
 
         self.band_count = band_count
         self.endmember_count = endmember_count
-        self.kernel_size = kernel_size
+        self.kernel_size = d_kernel_size
         self.layers = nn.ModuleList()
 
         self.layers.append(
@@ -281,11 +279,12 @@ def init_network(enc_params, dec_params, common_params):
     enc = Encoder(enc_layer_count=2,
                   band_count=int(common_params['bands'] / 2),
                   endmember_count=common_params['endmember_count'],
-                  e_filter_count=128,
-                  kernel_size=7,
-                  kernel_reduction=2)
+                  e_filter_count=enc_params['e_filter_count'],
+                  e_kernel_size=enc_params['e_kernel_size'],
+                  kernel_reduction=enc_params['kernel_reduction'],)
     dec = Decoder(band_count=common_params['bands'],
-                  endmember_count=common_params['endmember_count'])
+                  endmember_count=common_params['endmember_count'],
+                  d_kernel_size=dec_params['d_kernel_size'])
     enc = enc.float()
     dec = dec.float()
 
@@ -298,8 +297,8 @@ def init_network(enc_params, dec_params, common_params):
 
     logging.info(enc)
     logging.info(dec)
-    logging.info(enc.parameters())
-    logging.info(dec.parameters())
+    # logging.info(enc.parameters())
+    # logging.info(dec.parameters())
 
     return enc, dec
 
@@ -315,7 +314,7 @@ def cubeSAM(predcube, groundcube):
     coserror = torch.mean(torch.abs(1 - cossimilarity))
     return coserror
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, tune=False):
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True):
 
     bands = training_data.l
     half_point = int(bands/2)
@@ -457,8 +456,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             test_score = test_fn(y, dec_pred)
             test_item = test_score.item()
 
-        logging.info(f"Epoch {epoch}/{n_epochs} loss: {loss_item}")
-        logging.info(f"Epoch {epoch}/{n_epochs} test: {test_item}")
+        if prints:
+            sys.stdout.write('\r')
+            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item}   test: {test_item}")
+
+            # logging.info(f"Epoch {epoch}/{n_epochs} loss: {loss_item}")
+            # logging.info(f"Epoch {epoch}/{n_epochs} test: {test_item}")
         train_losses.append(loss_item)
         test_scores.append(test_item)
 
@@ -484,7 +487,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
-            endmembers_mid = endmembers[:, :, 6, 6]  # TODO replace the hardcoded incides! The spectra should always be the middle ones!
+            # Retrieve endmember spectra from middle of decoder kernels and plot them
+            dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
+            endmembers_mid = endmembers[:, :, dec_kernel_mid, dec_kernel_mid]
             plotter.plot_endmembers(endmembers_mid, epoch)
 
             final_pred = torch.squeeze(final_pred)
