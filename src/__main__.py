@@ -124,14 +124,17 @@ if __name__ == '__main__':
                       'd_endmember_count': common_params['endmember_count'],
                       'd_kernel_size': trial.suggest_int('d_kernel_size', 3, 15)}
 
-        best_loss, best_test_loss = nn.train(training_data,
-                                             enc_params=enc_params,
-                                             dec_params=dec_params,
-                                             common_params=common_params,
-                                             epochs=epochs,
-                                             plots=False,
-                                             prints=True)
-
+        try:
+            best_loss, best_test_loss = nn.train(training_data,
+                                                 enc_params=enc_params,
+                                                 dec_params=dec_params,
+                                                 common_params=common_params,
+                                                 epochs=epochs,
+                                                 plots=False,
+                                                 prints=True)
+        except:
+            logging.info('Something went wrong, terminating and trying next configuration')
+            best_test_loss = 100
         return best_test_loss
 
     optuna.logging.enable_propagation()  # Propagate logs to the root logger.
