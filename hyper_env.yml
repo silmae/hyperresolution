@@ -29,5 +29,6 @@ dependencies:
   - pip
   - pip:
       - spectral # for image cube read and write
+      - optuna # hyperparameter optimization
 #      - spectres # for resampling spectra
 #      - Pillow
