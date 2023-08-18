@@ -295,8 +295,9 @@ def init_network(enc_params, dec_params, common_params):
     enc.apply(init_weights)
     dec.apply(init_weights)
 
-    logging.info(enc)
-    logging.info(dec)
+    # # Print network structure into log
+    # logging.info(enc)
+    # logging.info(dec)
     # logging.info(enc.parameters())
     # logging.info(dec.parameters())
 
@@ -419,7 +420,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         {'params': dec.parameters()}
     ]
 
-    optimizer = torch.optim.Adam(params_to_optimize)
+    optimizer = torch.optim.Adam(params_to_optimize, lr=common_params['learning_rate'])
 
     # For storing performance results
     train_losses = []
@@ -465,10 +466,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         train_losses.append(loss_item)
         test_scores.append(test_item)
 
-        # # If tuning hyperparameters, report test score back to Ray
-        # if tune:
-        #     session.report({"test_loss": test_item})
-
         if loss_item < best_loss:
             best_loss = loss_item
             best_index = epoch
@@ -484,7 +481,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 2000 == 0 or epoch == n_epochs-1):
+        if plots is True and (epoch % 1000 == 0 or epoch == n_epochs-1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
             # Retrieve endmember spectra from middle of decoder kernels and plot them
@@ -538,7 +535,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)], final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], epoch, tag='middle')
             plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True, epoch=epoch)
 
-    plotter.plot_nn_train_history(train_losses, best_index, best_test_index, test_scores=test_scores, file_name='nn_history', log_y=True)
+    plotter.plot_nn_train_history(train_loss=train_losses,
+                                  best_epoch_idx=best_index,
+                                  test_scores=test_scores,
+                                  best_test_epoch_idx=best_test_index,
+                                  file_name='nn_history',
+                                  log_y=True)
 
     return best_loss, best_test_loss
 
