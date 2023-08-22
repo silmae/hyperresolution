@@ -374,7 +374,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # Calculate short wavelength loss by comparing cubes. For loss metric MAPE
         # loss_short = MAPE(short_y_true, short_y_pred)
         metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
-        metric_SAM = torchmetrics.SpectralAngleMapper(reduction='none').to(device)
+
+        # This thing can kill backprop even when called for a single spectrum
+        # metric_SAM = torchmetrics.SpectralAngleMapper(reduction='none').to(device)
 
         loss_short = metric_mape(short_y_pred, short_y_true)
         # loss_short_SAM = metric_SAM(short_y_pred, short_y_true)  # Using this function for masked cube breaks backprop: "RuntimeError: Function 'CatBackward0' returned nan values in its 0th output."
@@ -390,7 +392,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         long_y_pred = torch.unsqueeze(long_y_pred, 3)
 
         loss_long = metric_mape(long_y_pred, long_y_true)
-        loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
+        loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
+        # loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
 
         # # TV over endmember spectra
         # total_variation = torch.norm(dec.layers[-1].weight.data[1:, :, :, :] - dec.layers[-1].weight.data[:-1, :, :, :], p=2)
@@ -470,8 +473,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             best_loss = loss_item
             best_index = epoch
 
-        if loss_item < best_test_loss:
-            best_test_loss = loss_item
+        if test_item < best_test_loss:
+            best_test_loss = test_item
             best_test_index = epoch
 
             # # This will save the whole shebang, which is a bit stupid
