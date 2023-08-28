@@ -256,6 +256,8 @@ class TrainingData(Dataset):
         self.w = w
         self.h = h
         self.l = l
+        if type != 'remote_sensing':
+            self.wavelengths = wavelengths
         # self.abundance_count = abundance_count
         l_half = int(self.l / 2)
 

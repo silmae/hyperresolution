@@ -76,10 +76,40 @@ if __name__ == '__main__':
 
         print(f"Name of current CUDA device: {torch.cuda.get_device_name(cuda_id)}")
 
-    training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
+    # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
-    # training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
+    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
+
+    def ASPECTify(cube, wavelengths, VIS=False, NIR1=True, NIR2=True, SWIR=True):
+        """Take a spectral image and make it look like data from Milani's ASPECT"""
+        if VIS:
+            print('Sorry, the function can not currently work with the VIS portion of ASPECT')
+            print('Stopping execution')
+            exit(1)
+
+        # ASPECT wavelength vectors: change these values later, if the wavelengths change!
+        ASPECT_VIS_wavelengths = np.linspace(start=0.650, stop=0.950, num=14)
+        ASPECT_NIR1_wavelengths = np.linspace(start=0.850, stop=0.1250, num=14)
+        ASPECT_NIR2_wavelengths = np.linspace(start=1.200, stop=0.1600, num=14)
+        ASPECT_SWIR_wavelengths = np.linspace(start=1.650, stop=2.500, num=30)
+        # ASPECT FOVs in degrees
+        ASPECT_VIS_FOV = 10  # 10x10 deg square
+        ASPECT_NIR_FOV_w = 6.7  # width
+        ASPECT_NIR_FOV_h = 5.4  # height
+        ASPECT_SWIR_FOV = 5.85  # circular
+
+        if (NIR1 or NIR2) and SWIR:
+            # The largest is the SWIR circular FOV, and so it is the limiting factor
+            # Cut the largest possible rectangle where one side is circular FOV, other is width of NIR. Then divide
+            # along wavelength into NIR and SWIR, mask SWIR into circle and take mean spectrum, and cut NIR to size.
+            return None
+
+
+        print('kalja')
+
+
+    training_data_ASPECT = ASPECTify(training_data.cube, training_data.wavelengths)
 
     # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module  # TODO make radius comparable with aspect ratio
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
@@ -147,10 +177,6 @@ if __name__ == '__main__':
 
     # Print summary of optimization run into log
     logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
-
-    # with open(f"{filename}.log") as f:
-    #     assert f.readline().startswith("A new study created")
-    #     assert f.readline() == "Start optimization.\n"
 
 
 
