@@ -315,7 +315,7 @@ def open_DAWN_VIR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154033
                          '0.982,0.984,0.986,0.987,0.989,0.991,0.993,0.995,0.997,0.999,1.001,1.003,\n'
                          '1.004,1.006,1.008,1.010,1.012,1.014,1.016,1.018,1.020,1.021,1.023,1.025,\n'
                          '1.027,1.029,1.031,1.033,1.035,1.037,1.039,1.040,1.042,1.044,1.046,1.048,\n'
-                         '1.050,1.052,1.054,1.056,1.057,1.059,1.061,1.063,1.065,1.067,1.069,1.071}'
+                         '1.050,1.052,1.054,1.056,1.057,1.059,1.061,1.063,1.065,1.067,1.069,1.071}\n'
                          'fwhm = {\n'
                          '0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0021,\n'
                          '0.0021, 0.0021, 0.0021, 0.0021, 0.0021, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,\n'
@@ -365,8 +365,58 @@ def open_DAWN_VIR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154033
     numpyimage = np.nan_to_num(numpyimage, nan=0)
     numpyimage = np.clip(numpyimage, a_min=0,
                          a_max=100)  # Without clipping the minimum is -32 767: this values is used in original processing to mark bad pixels
-    plt.imshow(np.mean(numpyimage, 2), vmin=0)
-    plt.imshow(np.mean(numpyimage, axis=2), vmin=0)
-    plt.show()
+    # plt.imshow(np.mean(numpyimage, 2), vmin=0)
+    # plt.imshow(np.mean(numpyimage, axis=2), vmin=0)
+    # plt.show()
 
     return numpyimage, img  # Return both the numpy array and the whole ENVI thing
+
+
+def join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_fwhms, ir_fwhms):
+    """
+    Concatenate VIS and IR cubes from the VIR instrument of NASA Dawn. For the overlapping part of the cubes this
+    function discards the VIS channels and uses only IR, since the VIS ones are much noisier. The function also does
+    not attempt to adjust the levels of VIS and IR, but just assumes that the result is somewhat continuous.
+    Args:
+        vis_cube:
+            VIR-VIS datacube as ndarray
+        ir_cube:
+            VIR-IR datacube as ndarray
+        vis_wavelengths:
+            Band center wavelengths for VIS as list
+        ir_wavelengths:
+            Band center wavelengths for IR as list
+        vis_fwhms:
+            Band full-width half-maximum values for VIS
+        ir_fwhms:
+            Band full-width half-maximum values for IR
+
+    Returns:
+            cube, wavelength vector, FWHM vector
+    """
+    # # Plot of VIS and IR spectrum in same fig: in the overlapping section the VIS is noisy, so discard it and use IR
+    # plt.figure()
+    # plt.plot(vis_wavelengths, vis_cube[60, 220, :])
+    # plt.plot(ir_wavelengths, ir_cube[60, 220, :])
+    # plt.show()
+
+    min_wavelength_ir = ir_wavelengths[0]
+    vis_indices = np.where(np.asarray(vis_wavelengths) < min_wavelength_ir)
+    vis_cube = np.squeeze(vis_cube[:, :, vis_indices])  # remove extra dimension created from selecting with the indices
+
+    vis_wavelengths = np.asarray(vis_wavelengths)[vis_indices]
+    ir_wavelengths = np.asarray(ir_wavelengths)
+
+    vis_fwhms = np.asarray(vis_fwhms)[vis_indices]
+    ir_fwhms = np.asarray(ir_fwhms)
+
+    # Combine the VIS and IR cubes, wavelengths and FWHMs
+    cube = np.append(vis_cube, ir_cube, axis=2)
+    wavelengths = np.append(vis_wavelengths, ir_wavelengths)
+    fwhms = np.append(vis_fwhms, ir_fwhms)
+
+    plt.figure()
+    plt.plot(wavelengths, cube[60, 230, :])
+    plt.show()
+
+    return cube, wavelengths, fwhms
