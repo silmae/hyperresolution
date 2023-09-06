@@ -9,9 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage, misc
 import torch
-# from planetaryimage import CubeFile
+from planetaryimage import CubeFile
 
 import optuna
+
+import spectral
 
 from src import nn
 from src import utils
@@ -40,24 +42,27 @@ if __name__ == '__main__':
 
     # testin = utils.open_DAWN_VIR_IR_PDS3_as_ENVI('./datasets/DAWN/VIR_IR_1B_1_368033917_3.LBL')
 
-    # # TODO Make a function for opening these ISIS cube files. Will most likely need to tailor
-    # #  the angle for rotation and the crop indices for each image.
-    # #  Also write a function for feeding that data to the network.
+    # TODO Make a function for opening these ISIS cube files. Will most likely need to tailor
+    #  the angle for rotation and the crop indices for each image.
+    #  Also write a function for feeding that data to the network.
+
+    # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_589173531_1.cub")  # This is the largest image of these, Ceres
+    # # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_487367451_1.cub")  # A bit smaller image, Ceres
+    # # isisimage = CubeFile.open("./datasets/DAWN/f-VIR_IR_1B_1_483703316_1.cub")  # This is taken from afar and has half of Ceres in view
     #
-    # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_589173531_1.cub")
-    # # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_487367451_1.cub")
-    # # isisimage = CubeFile.open("./datasets/DAWN/f-VIR_IR_1B_1_483703316_1.cub")
+    # bands = isisimage.label['IsisCube']['BandBin']
+    # wavelengths = bands['Center']
+    # FWHMs = bands['Width']
     #
     # showable = isisimage.data[100, :, :]  # pick one channel for plotting
     # showable = np.clip(showable, 0, 1000)  # clip to get rid of the absurd masking values
     # showable = ndimage.rotate(showable, 45, mode='constant')  # rotate to get the interesting area horizontal
-    # showable = showable[300:600, 200:700]  # crop the masking values away
+    # # showable = showable[300:600, 200:700]  # crop the masking values away
     #
     # plt.imshow(showable, vmin=0)
     # plt.show()
     #
     # print('stop')
-
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -79,37 +84,65 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
-    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
+    # training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
 
-    def ASPECTify(cube, wavelengths, VIS=False, NIR1=True, NIR2=True, SWIR=True):
-        """Take a spectral image and make it look like data from Milani's ASPECT"""
-        if VIS:
-            print('Sorry, the function can not currently work with the VIS portion of ASPECT')
-            print('Stopping execution')
-            exit(1)
+    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_VIS_1B_1_487349955_1.LBL'))
+    # training_data_IR = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_487349955_1.LBL'))
 
-        # ASPECT wavelength vectors: change these values later, if the wavelengths change!
-        ASPECT_VIS_wavelengths = np.linspace(start=0.650, stop=0.950, num=14)
-        ASPECT_NIR1_wavelengths = np.linspace(start=0.850, stop=0.1250, num=14)
-        ASPECT_NIR2_wavelengths = np.linspace(start=1.200, stop=0.1600, num=14)
-        ASPECT_SWIR_wavelengths = np.linspace(start=1.650, stop=2.500, num=30)
-        # ASPECT FOVs in degrees
-        ASPECT_VIS_FOV = 10  # 10x10 deg square
-        ASPECT_NIR_FOV_w = 6.7  # width
-        ASPECT_NIR_FOV_h = 5.4  # height
-        ASPECT_SWIR_FOV = 5.85  # circular
+    print('test')
+    def ASPECT_resampling(cube, wavelengths):
+        ASPECT_wavelengths = np.linspace(start=0.850, stop=2.500, num=60)
 
-        if (NIR1 or NIR2) and SWIR:
-            # The largest is the SWIR circular FOV, and so it is the limiting factor
-            # Cut the largest possible rectangle where one side is circular FOV, other is width of NIR. Then divide
-            # along wavelength into NIR and SWIR, mask SWIR into circle and take mean spectrum, and cut NIR to size.
-            return None
+        if min(ASPECT_wavelengths) <= min(wavelengths):
+            minimum = min(wavelengths)
+        else:
+            minimum = min(ASPECT_wavelengths)
 
+        if max(ASPECT_wavelengths) >= max(wavelengths):
+            maximum = max(wavelengths)
+        else:
+            maximum = max(ASPECT_wavelengths)
 
-        print('kalja')
+        resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths)
+
+        cube_resampled = resample(cube[:, 0, 0])
+
+        return cube_resampled
 
 
-    training_data_ASPECT = ASPECTify(training_data.cube, training_data.wavelengths)
+
+        print('test')
+
+
+    training_data = ASPECT_resampling(training_data.cube, training_data.wavelengths)
+
+    # TODO Make this function work, but later
+    # def ASPECTify(cube, wavelengths, VIS=False, NIR1=True, NIR2=True, SWIR=True):
+    #     """Take a spectral image and make it look like data from Milani's ASPECT"""
+    #     if VIS:
+    #         print('Sorry, the function can not currently work with the VIS portion of ASPECT')
+    #         print('Stopping execution')
+    #         exit(1)
+    #
+    #     # ASPECT wavelength vectors: change these values later, if the wavelengths change!
+    #     ASPECT_VIS_wavelengths = np.linspace(start=0.650, stop=0.950, num=14)
+    #     ASPECT_NIR1_wavelengths = np.linspace(start=0.850, stop=0.1250, num=14)
+    #     ASPECT_NIR2_wavelengths = np.linspace(start=1.200, stop=0.1600, num=14)
+    #     ASPECT_SWIR_wavelengths = np.linspace(start=1.650, stop=2.500, num=30)
+    #     # ASPECT FOVs in degrees
+    #     ASPECT_VIS_FOV = 10  # 10x10 deg square
+    #     ASPECT_NIR_FOV_w = 6.7  # width
+    #     ASPECT_NIR_FOV_h = 5.4  # height
+    #     ASPECT_SWIR_FOV = 5.85  # circular
+    #
+    #     if (NIR1 or NIR2) and SWIR:
+    #         # The largest is the SWIR circular FOV, and so it is the limiting factor
+    #         # Cut the largest possible rectangle where one side is circular FOV, other is width of NIR. Then divide
+    #         # along wavelength into NIR and SWIR, mask SWIR into circle and take mean spectrum, and cut NIR to size.
+    #         return None
+    #
+    #
+    # training_data_ASPECT = ASPECTify(training_data.cube, training_data.wavelengths)
 
     # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module  # TODO make radius comparable with aspect ratio
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
