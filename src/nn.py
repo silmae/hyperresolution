@@ -1,5 +1,5 @@
 
-
+from pathlib import Path
 import logging
 import sys
 import math
@@ -220,21 +220,44 @@ def file_loader_luigi(filepath):
 
 
 def file_loader_DAWN(filepath):
-    cube, data = utils.open_DAWN_VIR_IR_PDS3_as_ENVI(filepath)
+    filepath = str(filepath)
+    if 'VIS' in filepath:
+        vis_path = Path(filepath)
+        ir_path = Path(filepath.replace('VIS', 'IR'))
+    elif 'IR' in filepath:
+        ir_path = Path(filepath)
+        vis_path = Path(filepath.replace('IR', 'VIS'))
 
-    # Crop the cube a bit in horizontal direction
-    cube = cube[:, :100, :]
+    try:
+        vis_cube, vis_data = utils.open_DAWN_VIR_PDS3_as_ENVI(vis_path)
+    except FileNotFoundError:
+        logging.info('NIR-VIS file not found, loading only IR part')
+        vis_cube, vis_data = None, None
+
+    try:
+        ir_cube, ir_data = utils.open_DAWN_VIR_PDS3_as_ENVI(ir_path)
+    except FileNotFoundError:
+        logging.info('NIR-IR file not found, loading only VIS part')
+        ir_cube, ir_data = None, None
+
+    # # Crop the cube a bit in horizontal direction
+    # cube = cube[:, :100, :]
+
+
 
     # # Sanity check plot
     # plt.imshow(cube[:, :, 80])
     # plt.show()
 
-    shape = cube.shape
-    w = shape[1]
-    h = shape[0]
-    l = shape[2]
+    # shape = cube.shape
+    # w = shape[1]
+    # h = shape[0]
+    # l = shape[2]
 
-    wavelengths = data.metadata['wavelength']
+    wavelengths_vis = vis_data.metadata['wavelength']
+    wavelengths_ir = ir_data.metadata['wavelength']
+    wavelengths = wavelengths_vis + wavelengths_ir
+    wavelengths = [float(x) for x in wavelengths]
 
     return h, w, l, cube, wavelengths
 
