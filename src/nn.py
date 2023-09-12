@@ -277,7 +277,7 @@ def file_loader_DAWN(filepath):
     h = shape[0]
     l = shape[2]
 
-    return h, w, l, cube, wavelengths
+    return h, w, l, cube, wavelengths, fwhms
 
 
 class TrainingData(Dataset):
@@ -292,7 +292,8 @@ class TrainingData(Dataset):
         elif type == 'luigi':
             h, w, l, cube, wavelengths = file_loader_luigi(filepath)
         elif type == 'DAWN':
-            h, w, l, cube, wavelengths = file_loader_DAWN(filepath)
+            h, w, l, cube, wavelengths, FWHMs = file_loader_DAWN(filepath)
+            self.FWHMs = FWHMs
 
         self.w = w
         self.h = h
@@ -300,6 +301,7 @@ class TrainingData(Dataset):
         if type != 'remote_sensing':  # no wavelength data for the remote sensing images used here
             self.wavelengths = wavelengths
             # self.abundance_count = abundance_count
+
         l_half = int(self.l / 2)
 
         # Dimensions of the image must be [batches, bands, width, height] for convolution
