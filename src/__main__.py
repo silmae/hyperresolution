@@ -23,14 +23,14 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
-    # Save logs into file
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)  # Setup the root logger.
-
-    now = datetime.now()
-    filename = now.strftime("%Y-%M-%d_%H:%M:%S")
-
-    logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
+    # # Save logs into file
+    # logger = logging.getLogger()
+    # logger.setLevel(logging.INFO)  # Setup the root logger.
+    #
+    # now = datetime.now()
+    # filename = now.strftime("%Y-%M-%d_%H:%M:%S")
+    #
+    # logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
 
     # TODO Vinkkejä mistä jatkaa tätä projektia:
     #  ISIS kuution avaaminen funktiossa ja tuon datan syöttö verkolle toisella funktiolla
@@ -46,23 +46,40 @@ if __name__ == '__main__':
     #  the angle for rotation and the crop indices for each image.
     #  Also write a function for feeding that data to the network.
 
-    # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_589173531_1.cub")  # This is the largest image of these, Ceres
-    # # isisimage = CubeFile.open("./datasets/DAWN/m-VIR_IR_1B_1_487367451_1.cub")  # A bit smaller image, Ceres
-    # # isisimage = CubeFile.open("./datasets/DAWN/f-VIR_IR_1B_1_483703316_1.cub")  # This is taken from afar and has half of Ceres in view
-    #
+    # isisimage = CubeFile.open("./datasets/DAWN/ISIS/m-VIR_IR_1B_1_589173531_1.cub")  # This is the largest image of these, Ceres
+    # isisimage = CubeFile.open("./datasets/DAWN/ISIS/m-VIR_IR_1B_1_487367451_1.cub")  # A bit smaller image, Ceres
+    # isisimage = CubeFile.open("./datasets/DAWN/ISIS/f-VIR_IR_1B_1_483703316_1.cub")  # This is taken from afar and has half of Ceres in view
+    isisimage_IR = CubeFile.open("./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub")
+    isisimage_VIS = CubeFile.open("./datasets/DAWN/ISIS/m-VIR_VIS_1B_1_494387713_1.cub")
+
     # bands = isisimage.label['IsisCube']['BandBin']
     # wavelengths = bands['Center']
     # FWHMs = bands['Width']
-    #
-    # showable = isisimage.data[100, :, :]  # pick one channel for plotting
-    # showable = np.clip(showable, 0, 1000)  # clip to get rid of the absurd masking values
-    # showable = ndimage.rotate(showable, 45, mode='constant')  # rotate to get the interesting area horizontal
-    # # showable = showable[300:600, 200:700]  # crop the masking values away
-    #
-    # plt.imshow(showable, vmin=0)
-    # plt.show()
-    #
-    # print('stop')
+
+    showable_IR = isisimage_IR.data[100, :, :]  # pick one channel for plotting
+    showable_IR = np.clip(showable_IR, 0, 1000)  # clip to get rid of the absurd masking values
+    showable_IR = ndimage.rotate(showable_IR, -19, mode='constant')  # rotate to get the interesting area horizontal
+    showable_IR = showable_IR[150:460, 130:580]  # crop the masking values away
+    # showable_IR = showable_IR / np.max(showable_IR)
+    showable_IR = np.sqrt(showable_IR)
+
+    showable_VIS = isisimage_VIS.data[100, :, :]  # pick one channel for plotting
+    showable_VIS = np.clip(showable_VIS, 0, 1000)  # clip to get rid of the absurd masking values
+    showable_VIS = ndimage.rotate(showable_VIS, -19, mode='constant')  # rotate to get the interesting area horizontal
+    showable_VIS = showable_VIS[150:460, 130:580]  # crop the masking values away
+    # showable_VIS = showable_VIS / np.max(showable_VIS)
+    showable_VIS = np.sqrt(showable_VIS)
+
+    showable = showable_VIS + showable_IR
+
+    # showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))
+    # showable[:, :, 0] = showable_VIS
+    # showable[:, :, 1] = showable_IR
+
+    plt.imshow(showable, vmin=0)
+    plt.show()
+
+    print('stop')
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -84,14 +101,15 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='remote_sensing', filepath=Path('./datasets/TinyAPEX.mat'))
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
-    # training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_520299107_1.LBL'))
+    # training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/PDS3/VIR_IR_1B_1_520299107_1.LBL'))
 
-    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_VIS_1B_1_487349955_1.LBL'))
-    # training_data_IR = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/VIR_IR_1B_1_487349955_1.LBL'))
+    training_data = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/PDS3/VIR_VIS_1B_1_487349955_1.LBL'))
+    # training_data_IR = nn.TrainingData(type='DAWN', filepath=Path('./datasets/DAWN/PDS3/VIR_IR_1B_1_487349955_1.LBL'))
 
     print('test')
-    def ASPECT_resampling(cube, wavelengths):
-        ASPECT_wavelengths = np.linspace(start=0.850, stop=2.500, num=60)
+    def ASPECT_resampling(cube, wavelengths, FWHMs):
+        ASPECT_wavelengths = np.asarray(np.linspace(start=0.850, stop=2.500, num=60))
+        ASPECT_FWHMs = np.zeros(shape=ASPECT_wavelengths.shape) + 0.040
 
         if min(ASPECT_wavelengths) <= min(wavelengths):
             minimum = min(wavelengths)
@@ -103,18 +121,17 @@ if __name__ == '__main__':
         else:
             maximum = max(ASPECT_wavelengths)
 
-        resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths)
+        resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths, FWHMs, ASPECT_FWHMs)
 
-        cube_resampled = resample(cube[:, 0, 0])
+        cube_resampled = np.zeros(shape=(len(ASPECT_wavelengths), cube.shape[1], cube.shape[2]))
+        for i in range(cube.shape[1]):
+            for j in range(cube.shape[2]):
+                cube_resampled[:, i, j] = resample(cube[:, i, j])
 
-        return cube_resampled
+        return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
-
-        print('test')
-
-
-    training_data = ASPECT_resampling(training_data.cube, training_data.wavelengths)
+    training_data = ASPECT_resampling(training_data.cube, training_data.wavelengths, training_data.FWHMs)
 
     # TODO Make this function work, but later
     # def ASPECTify(cube, wavelengths, VIS=False, NIR1=True, NIR2=True, SWIR=True):
