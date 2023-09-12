@@ -15,6 +15,8 @@ import optuna
 
 import spectral
 
+import cv2 as cv
+
 from src import nn
 from src import utils
 
@@ -56,25 +58,29 @@ if __name__ == '__main__':
     # wavelengths = bands['Center']
     # FWHMs = bands['Width']
 
-    showable_IR = isisimage_IR.data[100, :, :]  # pick one channel for plotting
+    showable_IR = isisimage_IR.data[200, :, :]  # pick one channel for plotting
     showable_IR = np.clip(showable_IR, 0, 1000)  # clip to get rid of the absurd masking values
     showable_IR = ndimage.rotate(showable_IR, -19, mode='constant')  # rotate to get the interesting area horizontal
-    showable_IR = showable_IR[150:460, 130:580]  # crop the masking values away
-    # showable_IR = showable_IR / np.max(showable_IR)
-    showable_IR = np.sqrt(showable_IR)
+    showable_IR = showable_IR[190:460, 130:580]  # crop the masking values away
+    showable_IR = showable_IR / np.max(showable_IR)  # normalization
+    showable_IR = showable_IR * 256  # convert to integer to make compatible for edge detection
+    showable_IR = showable_IR.astype(np.uint8)
+    edges_IR = cv.Canny(showable_IR, 60, 40)  # Edge detection
 
-    showable_VIS = isisimage_VIS.data[100, :, :]  # pick one channel for plotting
-    showable_VIS = np.clip(showable_VIS, 0, 1000)  # clip to get rid of the absurd masking values
-    showable_VIS = ndimage.rotate(showable_VIS, -19, mode='constant')  # rotate to get the interesting area horizontal
-    showable_VIS = showable_VIS[150:460, 130:580]  # crop the masking values away
-    # showable_VIS = showable_VIS / np.max(showable_VIS)
-    showable_VIS = np.sqrt(showable_VIS)
+    showable_VIS = isisimage_VIS.data[200, :, :]
+    showable_VIS = np.clip(showable_VIS, 0, 1000)
+    showable_VIS = ndimage.rotate(showable_VIS, -19, mode='constant')
+    showable_VIS = showable_VIS[193:463, 132:582]  # offset in y direction
+    showable_VIS = showable_VIS / np.max(showable_VIS)
+    showable_VIS = showable_VIS * 256
+    showable_VIS = showable_VIS.astype(np.uint8)
+    edges_VIS = cv.Canny(showable_VIS, 60, 40)
 
-    showable = showable_VIS + showable_IR
+    # showable = showable_VIS + showable_IR
 
-    # showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))
-    # showable[:, :, 0] = showable_VIS
-    # showable[:, :, 1] = showable_IR
+    showable = np.zeros(shape=(edges_VIS.shape[0], edges_VIS.shape[1], 3))
+    showable[:, :, 0] = edges_VIS
+    showable[:, :, 1] = edges_IR
 
     plt.imshow(showable, vmin=0)
     plt.show()
