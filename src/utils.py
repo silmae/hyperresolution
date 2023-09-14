@@ -2,12 +2,19 @@
 This file contains miscellaneous utility functions
 """
 import math
+from pathlib import Path
 
 import numpy as np
 from matplotlib import pyplot as plt
 import spectral.io.envi as envi
 from torch import Tensor
 import torch
+from planetaryimage import CubeFile
+import spectral
+from scipy import ndimage, misc
+import cv2 as cv
+
+from src import constants
 
 
 def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center: tuple = None,
@@ -134,6 +141,12 @@ def crop_and_mask(dataset, aspect_ratio=1, radius=None):
     # plt.show()
 
     return dataset
+
+
+def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
+    isisimage = CubeFile.open(str(cub_path))
+    cube = isisimage.data
+    return cube, isisimage
 
 
 def open_DAWN_VIR_PDS3_as_ENVI(label_path='./datasets/DAWN/VIR_IR_1B_1_488154033_1.LBL'):
@@ -415,8 +428,79 @@ def join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_
     wavelengths = np.append(vis_wavelengths, ir_wavelengths)
     fwhms = np.append(vis_fwhms, ir_fwhms)
 
-    plt.figure()
-    plt.plot(wavelengths, cube[60, 230, :])
-    plt.show()
+    # plt.figure()
+    # plt.plot(wavelengths, cube[60, 230, :])
+    # plt.show()
 
     return cube, wavelengths, fwhms
+
+
+def ASPECT_resampling(cube, wavelengths, FWHMs):
+    ASPECT_wavelengths = constants.ASPECT_wavelengths
+    ASPECT_FWHMs = constants.ASPECT_FWHMs
+
+    # if min(ASPECT_wavelengths) <= min(wavelengths):
+    #     minimum = min(wavelengths)
+    # else:
+    #     minimum = min(ASPECT_wavelengths)
+    #
+    # if max(ASPECT_wavelengths) >= max(wavelengths):
+    #     maximum = max(wavelengths)
+    # else:
+    #     maximum = max(ASPECT_wavelengths)
+
+    resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths, FWHMs, ASPECT_FWHMs)
+
+    cube_resampled = np.zeros(shape=(cube.shape[0], cube.shape[1], len(ASPECT_wavelengths)))
+    for i in range(cube.shape[0]):
+        for j in range(cube.shape[1]):
+            cube_resampled[i, j, :] = resample(cube[i, j, :])
+
+    return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
+
+
+def rot_and_crop_Dawn_VIR_ISIS(data, rot_deg, crop_indices_x=(130, 580), crop_indices_y=(190, 460), edge_detection=False):
+
+    data = np.clip(data, 0, 1000)  # clip to get rid of the absurd masking values
+    data = ndimage.rotate(data, rot_deg, mode='constant', axes=(1, 2))  # rotate to get the interesting area horizontal
+    data = data[:, crop_indices_y[0]:crop_indices_y[1], crop_indices_x[0]:crop_indices_x[1]]  # crop the masking values away
+
+    if edge_detection:
+        image = data[200, :, :]  # pick one channel for plotting
+        image = image / np.max(image)  # normalization
+        image = image * 256  # convert to 8-bit integer to make compatible for edge detection
+        image = image.astype(np.uint8)
+        edges = cv.Canny(image, 60, 40)  # Edge detection
+    else:
+        edges = None
+
+    return data, edges
+
+
+# TODO Make this function work, but later
+    # def ASPECTify(cube, wavelengths, VIS=False, NIR1=True, NIR2=True, SWIR=True):
+    #     """Take a spectral image and make it look like data from Milani's ASPECT"""
+    #     if VIS:
+    #         print('Sorry, the function can not currently work with the VIS portion of ASPECT')
+    #         print('Stopping execution')
+    #         exit(1)
+    #
+    #     # ASPECT wavelength vectors: change these values later, if the wavelengths change!
+    #     ASPECT_VIS_wavelengths = np.linspace(start=0.650, stop=0.950, num=14)
+    #     ASPECT_NIR1_wavelengths = np.linspace(start=0.850, stop=0.1250, num=14)
+    #     ASPECT_NIR2_wavelengths = np.linspace(start=1.200, stop=0.1600, num=14)
+    #     ASPECT_SWIR_wavelengths = np.linspace(start=1.650, stop=2.500, num=30)
+    #     # ASPECT FOVs in degrees
+    #     ASPECT_VIS_FOV = 10  # 10x10 deg square
+    #     ASPECT_NIR_FOV_w = 6.7  # width
+    #     ASPECT_NIR_FOV_h = 5.4  # height
+    #     ASPECT_SWIR_FOV = 5.85  # circular
+    #
+    #     if (NIR1 or NIR2) and SWIR:
+    #         # The largest is the SWIR circular FOV, and so it is the limiting factor
+    #         # Cut the largest possible rectangle where one side is circular FOV, other is width of NIR. Then divide
+    #         # along wavelength into NIR and SWIR, mask SWIR into circle and take mean spectrum, and cut NIR to size.
+    #         return None
+    #
+    #
+    # training_data_ASPECT = ASPECTify(training_data.cube, training_data.wavelengths)
