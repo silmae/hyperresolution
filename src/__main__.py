@@ -58,27 +58,34 @@ if __name__ == '__main__':
     # wavelengths = bands['Center']
     # FWHMs = bands['Width']
 
-    showable_IR = isisimage_IR.data[200, :, :]  # pick one channel for plotting
-    showable_IR = np.clip(showable_IR, 0, 1000)  # clip to get rid of the absurd masking values
-    showable_IR = ndimage.rotate(showable_IR, -19, mode='constant')  # rotate to get the interesting area horizontal
-    showable_IR = showable_IR[190:460, 130:580]  # crop the masking values away
-    showable_IR = showable_IR / np.max(showable_IR)  # normalization
-    showable_IR = showable_IR * 256  # convert to integer to make compatible for edge detection
-    showable_IR = showable_IR.astype(np.uint8)
-    edges_IR = cv.Canny(showable_IR, 60, 40)  # Edge detection
+    def rot_and_crop_Dawn_VIR_ISIS(isisimage, rot_deg, crop_indices_x=(130, 580), crop_indices_y=(190, 460)):
 
-    showable_VIS = isisimage_VIS.data[200, :, :]
-    showable_VIS = np.clip(showable_VIS, 0, 1000)
-    showable_VIS = ndimage.rotate(showable_VIS, -19, mode='constant')
-    showable_VIS = showable_VIS[193:463, 132:582]  # offset in y direction
-    showable_VIS = showable_VIS / np.max(showable_VIS)
-    showable_VIS = showable_VIS * 256
-    showable_VIS = showable_VIS.astype(np.uint8)
-    edges_VIS = cv.Canny(showable_VIS, 60, 40)
+        data = isisimage.data
+        data = np.clip(data, 0, 1000)  # clip to get rid of the absurd masking values
+        data = ndimage.rotate(data, rot_deg, mode='constant')  # rotate to get the interesting area horizontal
+        data = data[:, crop_indices_y[0]:crop_indices_y[1], crop_indices_x[0]:crop_indices_x[1]]  # crop the masking values away
 
-    # showable = showable_VIS + showable_IR
+        showable = data[200, :, :]  # pick one channel for plotting
+        showable = showable / np.max(showable)  # normalization
+        showable = showable * 256  # convert to 8-bit integer to make compatible for edge detection
+        showable = showable.astype(np.uint8)
+        edges = cv.Canny(showable, 60, 40)  # Edge detection
 
-    showable = np.zeros(shape=(edges_VIS.shape[0], edges_VIS.shape[1], 3))
+        return data, showable, edges
+
+    data_IR, showable_IR, edges_IR = rot_and_crop_Dawn_VIR_ISIS(isisimage_IR, -19, (130, 580), (190, 460))
+    data_VIS, showable_VIS, edges_VIS = rot_and_crop_Dawn_VIR_ISIS(isisimage_VIS, -19, (132, 582), (193, 463))
+
+    # showable_VIS = isisimage_VIS.data[200, :, :]
+    # showable_VIS = np.clip(showable_VIS, 0, 1000)
+    # showable_VIS = ndimage.rotate(showable_VIS, -19, mode='constant')
+    # showable_VIS = showable_VIS[193:463, 132:582]  # offset in y direction
+    # showable_VIS = showable_VIS / np.max(showable_VIS)
+    # showable_VIS = showable_VIS * 256
+    # showable_VIS = showable_VIS.astype(np.uint8)
+    # edges_VIS = cv.Canny(showable_VIS, 60, 40)
+
+    showable = np.zeros(shape=(edges_VIS.shape[0], edges_VIS.shape[1], 3))  # Plot VIS edges in red channel, IR in green
     showable[:, :, 0] = edges_VIS
     showable[:, :, 1] = edges_IR
 
