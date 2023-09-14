@@ -31,4 +31,5 @@ dependencies:
       - spectral # for image cube read and write
       - optuna # hyperparameter optimization
       - opencv-python-headless # edge detection to determine offset for Dawn VIR VIS and IR
+      - planetaryimage # opening ISIS .cub files from Dawn
 #      - Pillow
