@@ -115,38 +115,34 @@ def plot_SAM(map, epoch):
     plt.close(fig)
 
 
-def plot_spectra(orig, pred, epoch, tag):
+def plot_spectra(orig, pred, tag, ax):
     """
     Plots two spectra, original and predicted, into same figure. Calculates for both curves a gradient to quantify the
-    amount of variation, and includes the results in a legend. Constructs a filename and saves the figure on disc.
+    amount of variation, and includes the results in a legend. Plots into axis object given as parameter, returns the
+    object.
 
     :param orig:
         Original spectrum
     :param pred:
         Predicted spectrum, same length as original
-    :param epoch:
-        Training epoch where the prediction was made, will be included in filename
     :param tag:
         A tag to be included in filename, for example 'best' or 'worst' prediction
+    :param ax:
+        Matplotlib axis object
+    :return:
+        Matplotlib axis object
     """
 
     # To quantify noise, calculate gradients from both
     orig_grad = sum(abs(orig[1:] - orig[:-1]))
     pred_grad = sum(abs(pred[1:] - pred[:-1]))
 
-    fig = plt.figure()
-    plt.plot(orig, label=f'Original, grad: {orig_grad}')
-    plt.plot(pred, label=f'Prediction, grad: {pred_grad}')
-    plt.legend()
+    ax.plot(orig, label=f'Original, grad: {orig_grad:.2f}')
+    ax.plot(pred, label=f'Prediction, grad: {pred_grad:.2f}')
+    ax.legend()
+    ax.set_title(f'{tag}')
 
-    folder = './figures/'
-    image_name = f"spectra_{tag}_e{epoch}.{image_type}"
-    path = Path(folder, image_name)
-    logging.info(f"Saving the image to '{path}'.")
-    plt.savefig(path, dpi=300)
-
-    plt.close(fig)
-
+    return ax
 
 def plot_endmembers(endmembers, epoch):
     """
