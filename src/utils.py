@@ -459,22 +459,74 @@ def ASPECT_resampling(cube, wavelengths, FWHMs):
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
-def rot_and_crop_Dawn_VIR_ISIS(data, rot_deg, crop_indices_x=(130, 580), crop_indices_y=(190, 460), edge_detection=False):
+def rot_and_crop_Dawn_VIR_ISIS(data, rot_deg, crop_indices_x, crop_indices_y, edge_detection=False):
 
     data = np.clip(data, 0, 1000)  # clip to get rid of the absurd masking values
     data = ndimage.rotate(data, rot_deg, mode='constant', axes=(1, 2))  # rotate to get the interesting area horizontal
+    # plt.figure()
+    # plt.imshow(data[100, :, :])
+    # plt.show()
     data = data[:, crop_indices_y[0]:crop_indices_y[1], crop_indices_x[0]:crop_indices_x[1]]  # crop the masking values away
+    # plt.figure()
+    # plt.imshow(data[100, :, :])
+    # plt.show()
 
     if edge_detection:
-        image = data[200, :, :]  # pick one channel for plotting
+        image = data[constants.edge_detection_channel, :, :]  # pick one channel for edge detection
         image = image / np.max(image)  # normalization
         image = image * 256  # convert to 8-bit integer to make compatible for edge detection
         image = image.astype(np.uint8)
-        edges = cv.Canny(image, 60, 40)  # Edge detection
+        edges = cv.Canny(image, constants.edge_detector_params[0], constants.edge_detector_params[1])  # Edge detection
     else:
         edges = None
 
     return data, edges
+
+
+def solar_irradiance(distance: float, wavelengths=constants.ASPECT_wavelengths, plot=False, resample=False):
+    """
+    Calculate solar spectral irradiance at a specified heliocentric distance, interpolated to match wl-vector.
+    Solar spectral irradiance data at 1 AU outside the atmosphere was taken from NREL:
+    https://www.nrel.gov/grid/solar-resource/spectra-astm-e490.html
+
+    :param distance:
+        Heliocentric distance in astronomical units
+    :param wavelengths: vector of floats
+        Wavelength vector (in µm), to which the insolation will be interpolated
+    :param plot:
+        Whether a plot will be shown of the calculated spectral irradiance
+
+    :return: ndarray
+        wavelength vector (in nanometers) and spectral irradiance in one ndarray
+    """
+
+    sol_path = constants.solar_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
+
+    solar = np.loadtxt(sol_path)
+
+    # # Convert from µm to nm, and 1/µm to 1/nm. Comment these two lines away if working with micrometers
+    # solar[:, 0] = solar[:, 0] * 1000
+    # solar[:, 1] = solar[:, 1] / 1000
+
+    # Scale with heliocentric distance, using the inverse square law
+    solar[:, 1] = solar[:, 1] / distance**2
+
+    if resample: # Resample to match the given wavelength vector
+        resampled_solar = np.zeros((len(wavelengths), 2))
+        resample = spectral.BandResampler(solar[:, 0], wavelengths)
+        resampled_solar[:, 0] = wavelengths
+        resampled_solar[:, 1] = resample(solar[:, 1])
+        final = resampled_solar
+    else:
+        final = solar
+
+    if plot == True:
+        plt.plot(final[:, 0], final[:, 1])
+        plt.xlabel('Wavelength [µm]')
+        plt.ylabel('Irradiance [W / m² / µm]')
+        plt.show()
+
+    return final
 
 
 # TODO Make this function work, but later

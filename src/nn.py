@@ -296,12 +296,17 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
 
     def _load_and_crop_(cub_path):
         cube, isis = utils.open_Dawn_VIR_ISIS(cub_path)
-        rot_crop_dict = constants.Dawn_ISIS_rot_deg_and_crop_indices[f'{cub_path.name}']
+        try:
+            rot_crop_dict = constants.Dawn_ISIS_rot_deg_and_crop_indices[f'{cub_path.name}']
+        except:
+            logging.info(f'No dictionary of rotation and crop indices corresponding to {cub_path.name} was found, check constants.py')
+            exit(1)
+
         cube, edges = utils.rot_and_crop_Dawn_VIR_ISIS(data=cube,
                                                        rot_deg=rot_crop_dict['rot_deg'],
                                                        crop_indices_x=rot_crop_dict['crop_indices_x'],
                                                        crop_indices_y=rot_crop_dict['crop_indices_y'],
-                                                       edge_detection=False)
+                                                       edge_detection=True)
         bands = isis.label['IsisCube']['BandBin']
         wavelengths = bands['Center']
         FWHMs = bands['Width']
@@ -310,25 +315,25 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
     vis_cube, vis_wavelengths, vis_FWHMs, vis_edges = _load_and_crop_(vis_path)
     ir_cube, ir_wavelengths, ir_FWHMs, ir_edges = _load_and_crop_(ir_path)
 
-    # # Plots to check if the offset between IR and VIS is good: edges detected from one frame of both
-    # edges = np.zeros(shape=(vis_edges.shape[0], vis_edges.shape[1], 3))  # Plot VIS edges in red channel, IR in green
-    # edges[:, :, 0] = vis_edges
-    # edges[:, :, 1] = ir_edges
-    #
-    # showable_VIS = vis_cube[200, :, :]
-    # showable_IR = ir_cube[200, :, :]
-    # showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))  # Plot one channel from VIS in red channel, IR in green
-    # showable[:, :, 0] = showable_VIS / np.max(showable_VIS)
-    # showable[:, :, 1] = showable_IR / np.max(showable_IR)
-    #
-    # fig, axs = plt.subplots(nrows=1, ncols=2, layout='constrained')
-    # ax = axs[0]
-    # ax.imshow(edges)
-    # ax.set_title('Edges')
-    # ax = axs[1]
-    # ax.imshow(showable)
-    # ax.set_title('One channel from each')
-    # plt.show()
+    # Plots to check if the offset between IR and VIS is good: edges detected from one frame of both
+    edges = np.zeros(shape=(vis_edges.shape[0], vis_edges.shape[1], 3))  # Plot VIS edges in red channel, IR in green
+    edges[:, :, 0] = vis_edges
+    edges[:, :, 1] = ir_edges
+
+    showable_VIS = vis_cube[100, :, :]
+    showable_IR = ir_cube[100, :, :]
+    showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))  # Plot one channel from VIS in red channel, IR in green
+    showable[:, :, 0] = showable_VIS / np.max(showable_VIS)
+    showable[:, :, 1] = showable_IR / np.max(showable_IR)
+
+    fig, axs = plt.subplots(nrows=1, ncols=2, layout='constrained')
+    ax = axs[0]
+    ax.imshow(edges)
+    ax.set_title('Edges')
+    ax = axs[1]
+    ax.imshow(showable)
+    ax.set_title('One channel from each')
+    plt.show()
 
     # ISIS image cubes have their dimensions in a different order, wavelengths first: transpose to wl last
     vis_cube = np.transpose(vis_cube, (2, 1, 0))
@@ -338,7 +343,13 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
                                                          vis_wavelengths=vis_wavelengths, ir_wavelengths=ir_wavelengths,
                                                          vis_fwhms=vis_FWHMs, ir_fwhms=ir_FWHMs)
 
+    # Resampling cube to ASPECT wavelengths
     cube, wavelengths, FWHMs = utils.ASPECT_resampling(cube, wavelengths, FWHMs)
+
+    # Convert radiances to I/F
+    insolation = utils.solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
+                                        plot=False, resample=True)
+    cube = cube / insolation[:, 1]
 
     # # Sanity check plot
     # plt.imshow(cube[:, :, 20])
@@ -627,10 +638,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             for i in range(10):
-                false_col_org = false_col_org + cube_original[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i), :, :] # TODO replace hardcoded indices
-                false_col_rec = false_col_rec + final_pred[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i), :, :]
-            false_col_org = false_col_org / 10
-            false_col_rec = false_col_rec / 10
+                false_col_org = false_col_org + cube_original[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i),
+                                                :, :]  # TODO replace hardcoded indices
+                false_col_rec = false_col_rec + final_pred[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i), :,
+                                                :]
+            false_col_org = false_col_org / np.max(false_col_org)
+            false_col_rec = false_col_rec / np.max(false_col_org)
 
             # juggle dimensions for plotting
             false_col_org = np.transpose(false_col_org, (2, 1, 0))
