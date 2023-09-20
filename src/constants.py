@@ -44,6 +44,7 @@ Dawn_ISIS_rot_deg_and_crop_indices = {'m-VIR_IR_1B_1_494387713_1.cub': VIR_IR_1B
 
 ASPECT_wavelengths = np.asarray(np.linspace(start=0.850, stop=2.500, num=60))
 ASPECT_FWHMs = np.zeros(shape=ASPECT_wavelengths.shape) + 0.040
+ASPECT_NIR_channel_shape = (512, 640)
 
 ceres_hc_dist = (2.55 + 2.99) / 2  # average between perihelion and aphelion
 
