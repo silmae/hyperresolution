@@ -19,6 +19,7 @@ import torch.optim as optim
 import torchmetrics
 import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
+import cv2 as cv
 
 from src import plotter
 from src import utils
@@ -354,9 +355,21 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
     # plt.imshow(cube[:, :, 20])
     # plt.show()
 
+    # Interpolate each wavelength channel to ASPECT NIR spatial pixel count
+    width = constants.ASPECT_NIR_channel_shape[1]
+    height = constants.ASPECT_NIR_channel_shape[0]
+    resized = np.zeros((height, width, cube.shape[2]))
+    for channel in range(cube.shape[2]):
+        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_AREA)
+    cube = resized
+
+    # # Sanity check plot
+    # plt.imshow(cube[:, :, 20])
+    # plt.show()
+
     shape = cube.shape
-    w = shape[1]
     h = shape[0]
+    w = shape[1]
     l = shape[2]
 
     # # Plot of one spectrum
@@ -532,8 +545,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
         # loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
 
-        # TV over endmember spectra
-        total_variation = torch.norm(dec.layers[-1].weight.data[half_point+1:, :, :, :] - dec.layers[-1].weight.data[half_point:-1, :, :, :], p=2)
+        # # TV over endmember spectra
+        # total_variation = torch.norm(dec.layers[-1].weight.data[half_point+1:, :, :, :] - dec.layers[-1].weight.data[half_point:-1, :, :, :], p=2)
 
         # # TV over output spectra
         # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
@@ -541,7 +554,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}, total variation: {total_variation}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM + 10000 * total_variation
+        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM #+ 0.01 * total_variation
 
         return loss_sum
 
@@ -549,6 +562,11 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         """Calculate a test score for a prediction by comparing the predicted cube to a ground truth one.
         Very similar to loss_fn, but the long wavelengths are not averaged into single spectrum.
         N.B. This sort of testing is not possible if the approach is ever applied in practice!"""
+
+        # Only the errors of the latter half are really interesting, so discard the shorter channels
+        predcube = predcube[:, half_point:, :, :]
+        groundcube = groundcube[:, half_point:, :, :]
+
         score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
         score_MAPE = metric_MAPE(predcube, groundcube)
