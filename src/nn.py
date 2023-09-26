@@ -465,6 +465,26 @@ def cubeSAM(predcube, groundcube):
     return coserror
 
 
+def tensor_image_corrcoeff(y_true, y_pred):
+    """Calculate mean image and flatten to make compatible with torch Pearson correlation coefficient"""
+    y_true_mean = torch.mean(y_true, dim=1)
+    y_true_mean = torch.flatten(y_true_mean)
+    y_pred_mean = torch.mean(y_pred, dim=1)
+    y_pred_mean = torch.flatten(y_pred_mean)
+
+    # The masking values being identical would push the correlation too high, so find their indices and discard them
+    correlation_indices = torch.nonzero(torch.abs(y_true_mean - 1))
+    y_true_mean = y_true_mean[correlation_indices]
+    y_pred_mean = y_pred_mean[correlation_indices]
+
+    flattened_means = torch.zeros(size=(2, len(y_true_mean)))
+    flattened_means[0, :] = torch.flatten(y_true_mean)
+    flattened_means[1, :] = torch.flatten(y_pred_mean)
+    spatial_correlation = torch.corrcoef(flattened_means)[0, 1]  # Returns 2-by-2 matrix, take non-diagonal element
+
+    return spatial_correlation
+
+
 def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True):
     bands = training_data.l
     half_point = int(bands / 2)
@@ -552,22 +572,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
 
         # Correlation of GT cube spatial features and full reconstruction cube spatial features
-        # Calculate mean image and flatten to make compatible with torch Pearson corrcoeff.
-        short_y_true_mean = torch.mean(short_y_true, dim=1)
-        short_y_true_mean = torch.flatten(short_y_true_mean)
-        full_y_pred_mean = torch.mean(y_pred, dim=1)
-        full_y_pred_mean = torch.flatten(full_y_pred_mean)
-
-        # The masking values being identical would push the correlation too high, so find their indices and discard them
-        correlation_indices = torch.nonzero(torch.abs(short_y_true_mean - 1))
-        short_y_true_mean = short_y_true_mean[correlation_indices]
-        full_y_pred_mean = full_y_pred_mean[correlation_indices]
-
-        flattened_means = torch.zeros(size=(2, len(short_y_true_mean)))
-        flattened_means[0, :] = torch.flatten(short_y_true_mean)
-        flattened_means[1, :] = torch.flatten(full_y_pred_mean)
-        spatial_correlation = torch.corrcoef(flattened_means)[0, 1]  # Returns 2-by-2 matrix, take non-diagonal element
-
+        spatial_correlation = tensor_image_corrcoeff(short_y_true, y_pred)
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}, total variation: {total_variation}')
 
         # Loss as sum of the calculated components
@@ -587,8 +592,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
         score_MAPE = metric_MAPE(predcube, groundcube)
-        # TODO calculate penalty for noise in output spectra
-        return score_SAM + score_MAPE
+        # TODO calculate penalty for noise in output spectra?
+        score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
+        return score_SAM + score_MAPE + score_spatial_corr
 
     # FROM https://medium.com/dataseries/convolutional-autoencoder-in-pytorch-on-mnist-dataset-d65145c132ac
     params_to_optimize = [
