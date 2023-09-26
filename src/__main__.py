@@ -69,69 +69,69 @@ if __name__ == '__main__':
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
     bands = training_data.l
 
-    endmember_count = 4    # endmember_count = training_data.abundance_count
-
-    common_params = {'bands': bands,
-                     'endmember_count': endmember_count,
-                     'learning_rate': 0.0001}
-
-    enc_params = {'enc_layer_count': 6,
-                  'band_count': int(common_params['bands'] / 2),
-                  'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 307,
-                  'e_kernel_size': 5,
-                  'kernel_reduction': 1}
-
-    dec_params = {'band_count': common_params['bands'],
-                  'endmember_count': common_params['endmember_count'],
-                  'd_kernel_size': 4}
-
-    # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=30000, prints=True, plots=True)
+    # endmember_count = 4    # endmember_count = training_data.abundance_count
+    #
+    # common_params = {'bands': bands,
+    #                  'endmember_count': endmember_count,
+    #                  'learning_rate': 0.0001}
+    #
+    # enc_params = {'enc_layer_count': 6,
+    #               'band_count': int(common_params['bands'] / 2),
+    #               'endmember_count': common_params['endmember_count'],
+    #               'e_filter_count': 307,
+    #               'e_kernel_size': 5,
+    #               'kernel_reduction': 1}
+    #
+    # dec_params = {'band_count': common_params['bands'],
+    #               'endmember_count': common_params['endmember_count'],
+    #               'd_kernel_size': 4}
+    #
+    # # Build and train a neural network
+    # nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=30000, prints=True, plots=True)
 
     ################# Hyperparameter optimization ##################
-    # epochs = 5000
-    #
-    # # Optuna without ray
-    # def objective(trial):
-    #
-    #     common_params = {'bands': bands,
-    #                      'endmember_count': trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
-    #                      'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e1, log=True)}
-    #
-    #     enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
-    #                   'band_count': int(common_params['bands'] / 2),
-    #                   'endmember_count': common_params['endmember_count'],
-    #                   'e_filter_count': trial.suggest_int('e_filter_count', 8, 512),
-    #                   'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 15),
-    #                   'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
-    #
-    #     dec_params = {'band_count': common_params['bands'],
-    #                   'd_endmember_count': common_params['endmember_count'],
-    #                   'd_kernel_size': trial.suggest_int('d_kernel_size', 1, 15)}
-    #
-    #     try:
-    #         best_loss, best_test_loss = nn.train(training_data,
-    #                                              enc_params=enc_params,
-    #                                              dec_params=dec_params,
-    #                                              common_params=common_params,
-    #                                              epochs=epochs,
-    #                                              plots=False,
-    #                                              prints=True)
-    #     except:
-    #         logging.info('Something went wrong, terminating and trying next configuration')
-    #         best_test_loss = 100
-    #     return best_test_loss
-    #
-    # optuna.logging.enable_propagation()  # Propagate logs to the root logger.
-    # optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
-    #
-    # # Create a study object and optimize the objective function.
-    # study = optuna.create_study(direction='minimize')
-    # study.optimize(objective, n_trials=400)
-    #
-    # # Print summary of optimization run into log
-    # logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
+    epochs = 10000
+
+    # Optuna without ray
+    def objective(trial):
+
+        common_params = {'bands': bands,
+                         'endmember_count': trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
+                         'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e1, log=True)}
+
+        enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
+                      'band_count': int(common_params['bands'] / 2),
+                      'endmember_count': common_params['endmember_count'],
+                      'e_filter_count': trial.suggest_int('e_filter_count', 8, 512),
+                      'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 15),
+                      'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
+
+        dec_params = {'band_count': common_params['bands'],
+                      'd_endmember_count': common_params['endmember_count'],
+                      'd_kernel_size': trial.suggest_int('d_kernel_size', 1, 15)}
+
+        try:
+            best_loss, best_test_loss = nn.train(training_data,
+                                                 enc_params=enc_params,
+                                                 dec_params=dec_params,
+                                                 common_params=common_params,
+                                                 epochs=epochs,
+                                                 plots=False,
+                                                 prints=True)
+        except:
+            logging.info('Something went wrong, terminating and trying next configuration')
+            best_test_loss = 100
+        return best_test_loss
+
+    optuna.logging.enable_propagation()  # Propagate logs to the root logger.
+    optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
+
+    # Create a study object and optimize the objective function.
+    study = optuna.create_study(direction='minimize')
+    study.optimize(objective, n_trials=200)
+
+    # Print summary of optimization run into log
+    logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
 
 
 
