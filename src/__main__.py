@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -60,10 +60,11 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='rock', filepath=Path('./datasets/0065/A.mhdr.h5'))
     # training_data = nn.TrainingData(type='luigi', filepath=Path('./datasets/Luigi_stone/30klx_G2.nc'))
     # training_data = nn.TrainingData(type='DAWN_PDS3', filepath=Path('./datasets/DAWN/PDS3/VIR_VIS_1B_1_487349955_1.LBL'))
-    # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'))  # Ceres
+    training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'))  # Ceres
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494253260_1.cub')) # Ceres, HAMO, Occator: ON THIS ONE THE OCCATOR BRIGHT SPOTS HAVE AN ARTEFACT WHERE DATA IS MISSING!
-    training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_VIS_1B_1_493567338_1.cub')) # Ceres, HAMO, Occator
+    # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_VIS_1B_1_493567338_1.cub')) # Ceres, HAMO, Occator
+    # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_VIS_1B_1_366641356_1.cub'))  # Vesta, HAMO, Marcia-Calpurnia-Minucia
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_366636556_1.cub'))  # Vesta, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_367917915_1.cub'))  # Vesta, survey
 
@@ -71,69 +72,69 @@ if __name__ == '__main__':
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
     bands = training_data.l
 
-    # endmember_count = 4    # endmember_count = training_data.abundance_count
-    #
-    # common_params = {'bands': bands,
-    #                  'endmember_count': endmember_count,
-    #                  'learning_rate': 0.0001}
-    #
-    # enc_params = {'enc_layer_count': 6,
-    #               'band_count': int(common_params['bands'] / 2),
-    #               'endmember_count': common_params['endmember_count'],
-    #               'e_filter_count': 307,
-    #               'e_kernel_size': 5,
-    #               'kernel_reduction': 1}
-    #
-    # dec_params = {'band_count': common_params['bands'],
-    #               'endmember_count': common_params['endmember_count'],
-    #               'd_kernel_size': 4}
-    #
-    # # Build and train a neural network
-    # nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=30000, prints=True, plots=True)
+    endmember_count = 12    # endmember_count = training_data.abundance_count
+
+    common_params = {'bands': bands,
+                     'endmember_count': endmember_count,
+                     'learning_rate': 0.000295}
+
+    enc_params = {'enc_layer_count': 7,
+                  'band_count': int(common_params['bands'] / 2),
+                  'endmember_count': common_params['endmember_count'],
+                  'e_filter_count': 270,
+                  'e_kernel_size': 3,
+                  'kernel_reduction': 2}
+
+    dec_params = {'band_count': common_params['bands'],
+                  'endmember_count': common_params['endmember_count'],
+                  'd_kernel_size': 3}
+
+    # Build and train a neural network
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=15000, prints=True, plots=True)
 
     ################# Hyperparameter optimization ##################
-    epochs = 10000
-
-    # Optuna without ray
-    def objective(trial):
-
-        common_params = {'bands': bands,
-                         'endmember_count': trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
-                         'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e1, log=True)}
-
-        enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
-                      'band_count': int(common_params['bands'] / 2),
-                      'endmember_count': common_params['endmember_count'],
-                      'e_filter_count': trial.suggest_int('e_filter_count', 8, 512),
-                      'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 15),
-                      'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
-
-        dec_params = {'band_count': common_params['bands'],
-                      'd_endmember_count': common_params['endmember_count'],
-                      'd_kernel_size': trial.suggest_int('d_kernel_size', 1, 15)}
-
-        try:
-            best_loss, best_test_loss = nn.train(training_data,
-                                                 enc_params=enc_params,
-                                                 dec_params=dec_params,
-                                                 common_params=common_params,
-                                                 epochs=epochs,
-                                                 plots=False,
-                                                 prints=True)
-        except:
-            logging.info('Something went wrong, terminating and trying next configuration')
-            best_test_loss = 100
-        return best_test_loss
-
-    optuna.logging.enable_propagation()  # Propagate logs to the root logger.
-    optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
-
-    # Create a study object and optimize the objective function.
-    study = optuna.create_study(direction='minimize')
-    study.optimize(objective, n_trials=200)
-
-    # Print summary of optimization run into log
-    logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
+    # epochs = 10000
+    #
+    # # Optuna without ray
+    # def objective(trial):
+    #
+    #     common_params = {'bands': bands,
+    #                      'endmember_count': trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
+    #                      'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e1, log=True)}
+    #
+    #     enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
+    #                   'band_count': int(common_params['bands'] / 2),
+    #                   'endmember_count': common_params['endmember_count'],
+    #                   'e_filter_count': trial.suggest_int('e_filter_count', 8, 512),
+    #                   'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 15),
+    #                   'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
+    #
+    #     dec_params = {'band_count': common_params['bands'],
+    #                   'd_endmember_count': common_params['endmember_count'],
+    #                   'd_kernel_size': trial.suggest_int('d_kernel_size', 1, 15)}
+    #
+    #     try:
+    #         best_loss, best_test_loss = nn.train(training_data,
+    #                                              enc_params=enc_params,
+    #                                              dec_params=dec_params,
+    #                                              common_params=common_params,
+    #                                              epochs=epochs,
+    #                                              plots=False,
+    #                                              prints=True)
+    #     except:
+    #         logging.info('Something went wrong, terminating and trying next configuration')
+    #         best_test_loss = 100
+    #     return best_test_loss
+    #
+    # optuna.logging.enable_propagation()  # Propagate logs to the root logger.
+    # optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
+    #
+    # # Create a study object and optimize the objective function.
+    # study = optuna.create_study(direction='minimize')
+    # study.optimize(objective, n_trials=200)
+    #
+    # # Print summary of optimization run into log
+    # logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
 
 
 
