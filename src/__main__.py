@@ -72,16 +72,20 @@ if __name__ == '__main__':
     training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
     bands = training_data.l
 
+    # parameters: {'endmember_count': 12, 'learning_rate': 0.00019193231850594397,
+    #                                          'enc_layer_count': 7, 'e_filter_count': 335, 'e_kernel_size': 3,
+    #                                          'kernel_reduction': 2, 'd_kernel_size': 3}
+
     endmember_count = 12    # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.000295}
+                     'learning_rate': 0.000191}
 
     enc_params = {'enc_layer_count': 7,
                   'band_count': int(common_params['bands'] / 2),
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 270,
+                  'e_filter_count': 335,
                   'e_kernel_size': 3,
                   'kernel_reduction': 2}
 

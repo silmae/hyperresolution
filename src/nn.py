@@ -315,25 +315,25 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
     vis_cube, vis_wavelengths, vis_FWHMs, vis_edges = _load_and_crop_(vis_path)
     ir_cube, ir_wavelengths, ir_FWHMs, ir_edges = _load_and_crop_(ir_path)
 
-    # Plots to check if the offset between IR and VIS is good: edges detected from one frame of both
-    edges = np.zeros(shape=(vis_edges.shape[0], vis_edges.shape[1], 3))  # Plot IR edges in red channel, VIS in green
-    edges[:, :, 0] = ir_edges
-    edges[:, :, 1] = vis_edges
-
-    showable_VIS = vis_cube[constants.edge_detection_channel, :, :]
-    showable_IR = ir_cube[constants.edge_detection_channel, :, :]
-    showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))  # Plot one channel from IR in red channel, VIS in green
-    showable[:, :, 0] = showable_IR / np.max(showable_IR)
-    showable[:, :, 1] = showable_VIS / np.max(showable_VIS)
-
-    fig, axs = plt.subplots(nrows=1, ncols=2, layout='constrained')
-    ax = axs[0]
-    ax.imshow(edges)
-    ax.set_title('Edges')
-    ax = axs[1]
-    ax.imshow(showable)
-    ax.set_title('One channel from each')
-    plt.show()
+    # # Plots to check if the offset between IR and VIS is good: edges detected from one frame of both
+    # edges = np.zeros(shape=(vis_edges.shape[0], vis_edges.shape[1], 3))  # Plot IR edges in red channel, VIS in green
+    # edges[:, :, 0] = ir_edges
+    # edges[:, :, 1] = vis_edges
+    #
+    # showable_VIS = vis_cube[constants.edge_detection_channel, :, :]
+    # showable_IR = ir_cube[constants.edge_detection_channel, :, :]
+    # showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))  # Plot one channel from IR in red channel, VIS in green
+    # showable[:, :, 0] = showable_IR / np.max(showable_IR)
+    # showable[:, :, 1] = showable_VIS / np.max(showable_VIS)
+    #
+    # fig, axs = plt.subplots(nrows=1, ncols=2, layout='constrained')
+    # ax = axs[0]
+    # ax.imshow(edges)
+    # ax.set_title('Edges')
+    # ax = axs[1]
+    # ax.imshow(showable)
+    # ax.set_title('One channel from each')
+    # plt.show()
 
     # ISIS image cubes have their dimensions in a different order, wavelengths first: transpose to wl last
     vis_cube = np.transpose(vis_cube, (2, 1, 0))
@@ -372,9 +372,9 @@ def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713
     w = shape[1]
     l = shape[2]
 
-    # Plot of one spectrum
-    plt.plot(wavelengths, cube[155, 285, :])
-    plt.show()
+    # # Plot of one spectrum
+    # plt.plot(wavelengths, cube[155, 285, :])
+    # plt.show()
 
     return h, w, l, cube, wavelengths, FWHMs
 
