@@ -4,8 +4,6 @@ import sys
 import math
 import os
 import numpy as np
-import h5py
-import xarray as xr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,18 +15,14 @@ from torch import load
 from torch import from_numpy
 import torch.optim as optim
 import torchmetrics
-import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
-import cv2 as cv
 
 from src import plotter
 from src import utils
-from src import constants
+from src import file_handling
 
 # Set manual seed for comparable results between training runs
 torch.manual_seed(42)
-
-bands = 80  # TODO what?
 
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
@@ -163,238 +157,22 @@ class Decoder(nn.Module):
         return x
 
 
-def file_loader_rem_sens(filepath="./datasets/TinyAPEX.mat"):
-    mat = scipy.io.loadmat(filepath)
-    # mat = scipy.io.loadmat("./datasets/Samson.mat")
-    w = mat['W'][0][0]  # W is 2 dim matrix with 1 element
-    h = mat['H'][0][0]
-    l = mat['L'][0][0]
-    abundance_count = mat['p'][0][0]
-    cube_flat = np.array(mat['Y'])
-    cube_flat = cube_flat.transpose()
-    # plt.imshow(cube_flat)
-    # plt.show()
-    cube = cube_flat.reshape(h, w, l)
-
-    return h, w, l, abundance_count, cube
-
-
-def file_loader_rock(filepath):
-    d = h5py.File(filepath, 'r')
-    contents = list(d.keys())
-    cube = np.transpose(d['/hdr'], (1, 2, 0))
-    cube = np.nan_to_num(cube, nan=1)  # Original rock images are masked with NaN, replace those with a number
-
-    wavelengths = d['/wavelengths'][:]
-
-    # cube = cube[50:, 50:, :]
-
-    # # Sanity check plot
-    # plt.imshow(np.nanmean(cube, 2))
-    # plt.show()
-
-    dimensions = cube.shape
-    h = dimensions[0]
-    w = dimensions[1]
-    l = dimensions[2]
-
-    return h, w, l, cube, wavelengths
-
-
-def file_loader_luigi(filepath):
-    data = xr.open_dataset(filepath)['reflectance']
-    cube = data.values
-
-    # The image is very large, crop to get manageable training time
-    cube = cube[75:300, 100:300, 0:120]
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 80])
-    # plt.show()
-
-    shape = cube.shape
-    w = shape[1]
-    h = shape[0]
-    l = shape[2]
-
-    wavelengths = data.wavelength.values
-
-    return h, w, l, cube, wavelengths
-
-
-def file_loader_Dawn_PDS3(filepath):
-    """
-    Loads PDS3 qube files of Dawn VIR-VIS and VIR-IR data when given path to lbl file associated with either VIS or IR.
-    Concatenates the cubes into one, using the IR channels for the overlapping part since the VIS ones are noisier.
-    Args:
-        filepath:
-
-    Returns:
-
-    """
-    filepath = str(filepath)
-    if '_VIS_' in filepath:
-        vis_path = Path(filepath)
-        ir_path = Path(filepath.replace('_VIS_', '_IR_'))
-    elif '_IR_' in filepath:
-        ir_path = Path(filepath)
-        vis_path = Path(filepath.replace('_IR_', '_VIS_'))
-
-    try:
-        vis_cube, vis_data = utils.open_DAWN_VIR_PDS3_as_ENVI(vis_path)
-    except FileNotFoundError:
-        logging.info('VIR-VIS file not found')
-        vis_cube, vis_data = None, None
-
-    try:
-        ir_cube, ir_data = utils.open_DAWN_VIR_PDS3_as_ENVI(ir_path)
-    except FileNotFoundError:
-        logging.info('VIR-IR file not found')
-        ir_cube, ir_data = None, None
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 80])
-    # plt.show()
-
-    vis_wavelengths = vis_data.metadata['wavelength']
-    vis_wavelengths = [float(x) for x in vis_wavelengths]
-    vis_fwhms = vis_data.metadata['fwhm']
-    vis_fwhms = [float(x) for x in vis_fwhms]
-
-    ir_wavelengths = ir_data.metadata['wavelength']
-    ir_wavelengths = [float(x) for x in ir_wavelengths]
-    ir_fwhms = vis_data.metadata['fwhm']
-    ir_fwhms = [float(x) for x in ir_fwhms]
-
-    # Join the VIS and IR cubes and wavelength vectors
-    cube, wavelengths, fwhms = utils.join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_fwhms,
-                                                         ir_fwhms)
-
-    # # Crop the cube a bit in horizontal direction
-    # cube = cube[:, :100, :]
-
-    # Resample spectra to resemble ASPECT data
-    cube, wavelengths, fwhms = utils.ASPECT_resampling(cube, wavelengths, fwhms)
-    # TODO Interpolate data spatially to have same pixel count as ASPECT NIR?
-
-    shape = cube.shape
-    w = shape[1]
-    h = shape[0]
-    l = shape[2]
-
-    return h, w, l, cube, wavelengths, fwhms
-
-
-def file_loader_Dawn_ISIS(filepath="./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub"):
-    filepath = str(filepath)
-    if '_VIS_' in filepath:
-        vis_path = Path(filepath)
-        ir_path = Path(filepath.replace('_VIS_', '_IR_'))
-    elif '_IR_' in filepath:
-        ir_path = Path(filepath)
-        vis_path = Path(filepath.replace('_IR_', '_VIS_'))
-
-    def _load_and_crop_(cub_path):
-        cube, isis = utils.open_Dawn_VIR_ISIS(cub_path)
-        try:
-            rot_crop_dict = constants.Dawn_ISIS_rot_deg_and_crop_indices[f'{cub_path.name}']
-        except:
-            logging.info(f'No dictionary of rotation and crop indices corresponding to {cub_path.name} was found, check constants.py')
-            exit(1)
-
-        cube, edges = utils.rot_and_crop_Dawn_VIR_ISIS(data=cube,
-                                                       rot_deg=rot_crop_dict['rot_deg'],
-                                                       crop_indices_x=rot_crop_dict['crop_indices_x'],
-                                                       crop_indices_y=rot_crop_dict['crop_indices_y'],
-                                                       edge_detection=True)
-        bands = isis.label['IsisCube']['BandBin']
-        wavelengths = bands['Center']
-        FWHMs = bands['Width']
-        return cube, wavelengths, FWHMs, edges
-
-    vis_cube, vis_wavelengths, vis_FWHMs, vis_edges = _load_and_crop_(vis_path)
-    ir_cube, ir_wavelengths, ir_FWHMs, ir_edges = _load_and_crop_(ir_path)
-
-    # # Plots to check if the offset between IR and VIS is good: edges detected from one frame of both
-    # edges = np.zeros(shape=(vis_edges.shape[0], vis_edges.shape[1], 3))  # Plot IR edges in red channel, VIS in green
-    # edges[:, :, 0] = ir_edges
-    # edges[:, :, 1] = vis_edges
-    #
-    # showable_VIS = vis_cube[constants.edge_detection_channel, :, :]
-    # showable_IR = ir_cube[constants.edge_detection_channel, :, :]
-    # showable = np.zeros(shape=(showable_VIS.shape[0], showable_VIS.shape[1], 3))  # Plot one channel from IR in red channel, VIS in green
-    # showable[:, :, 0] = showable_IR / np.max(showable_IR)
-    # showable[:, :, 1] = showable_VIS / np.max(showable_VIS)
-    #
-    # fig, axs = plt.subplots(nrows=1, ncols=2, layout='constrained')
-    # ax = axs[0]
-    # ax.imshow(edges)
-    # ax.set_title('Edges')
-    # ax = axs[1]
-    # ax.imshow(showable)
-    # ax.set_title('One channel from each')
-    # plt.show()
-
-    # ISIS image cubes have their dimensions in a different order, wavelengths first: transpose to wl last
-    vis_cube = np.transpose(vis_cube, (2, 1, 0))
-    ir_cube = np.transpose(ir_cube, (2, 1, 0))
-
-    cube, wavelengths, FWHMs = utils.join_VIR_VIS_and_IR(vis_cube=vis_cube, ir_cube=ir_cube,
-                                                         vis_wavelengths=vis_wavelengths, ir_wavelengths=ir_wavelengths,
-                                                         vis_fwhms=vis_FWHMs, ir_fwhms=ir_FWHMs)
-
-    # Resampling cube to ASPECT wavelengths
-    cube, wavelengths, FWHMs = utils.ASPECT_resampling(cube, wavelengths, FWHMs)
-
-    # Convert radiances to I/F
-    insolation = utils.solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
-                                        plot=False, resample=True)
-    cube = cube / insolation[:, 1]
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 20])
-    # plt.show()
-
-    # Interpolate each wavelength channel to ASPECT NIR spatial pixel count
-    width = constants.ASPECT_NIR_channel_shape[1]
-    height = constants.ASPECT_NIR_channel_shape[0]
-    resized = np.zeros((height, width, cube.shape[2]))
-    for channel in range(cube.shape[2]):
-        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_AREA)
-    cube = resized
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 30])
-    # plt.show()
-
-    shape = cube.shape
-    h = shape[0]
-    w = shape[1]
-    l = shape[2]
-
-    # # Plot of one spectrum
-    # plt.plot(wavelengths, cube[155, 285, :])
-    # plt.show()
-
-    return h, w, l, cube, wavelengths, FWHMs
-
-
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
     def __init__(self, type, filepath):
 
         if type == 'remote_sensing':
-            h, w, l, abundance_count, cube = file_loader_rem_sens(filepath)
+            h, w, l, abundance_count, cube = file_handling.file_loader_rem_sens(filepath)
         elif type == 'rock':
-            h, w, l, cube, wavelengths = file_loader_rock(filepath)
+            h, w, l, cube, wavelengths = file_handling.file_loader_rock(filepath)
         elif type == 'luigi':
-            h, w, l, cube, wavelengths = file_loader_luigi(filepath)
+            h, w, l, cube, wavelengths = file_handling.file_loader_luigi(filepath)
         elif type == 'DAWN_PDS3':
-            h, w, l, cube, wavelengths, FWHMs = file_loader_Dawn_PDS3(filepath)
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_PDS3(filepath)
             self.FWHMs = FWHMs
         elif type == 'DAWN_ISIS':
-            h, w, l, cube, wavelengths, FWHMs = file_loader_Dawn_ISIS(filepath)
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_ISIS(filepath)
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
