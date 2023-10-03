@@ -230,3 +230,35 @@ def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, 
 
     # close the figure to avoid memory consumption warning when over 20 figs
     plt.close(fig)
+
+
+def plot_abundance_maps(abundances, epoch):
+
+    # Sorry about the next lines, can't be bothered to think about this
+    count = abundances.shape[0]
+    if count <= 4:
+        n_row = 2
+        n_col = 2
+    elif count <= 6:
+        n_row = 2
+        n_col = 3
+    elif count <= 9:
+        n_row = 3
+        n_col = 3
+    else:
+        n_row = 3
+        n_col = 4
+
+    fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
+    axs = axs.flatten()
+    for i in range(count):
+        im = axs[i].imshow(abundances[i, :, :], vmin=0, vmax=1)
+        im.axes.xaxis.set_ticks([])
+        im.axes.yaxis.set_ticks([])
+    fig.colorbar(im, ax=axs.ravel().tolist())
+    folder = './figures/'
+    image_name = f"abundance_maps_e{epoch}.{image_type}"
+    path = Path(folder, image_name)
+    logging.info(f"Saving the image to '{path}'.")
+    plt.savefig(path, dpi=300)
+
