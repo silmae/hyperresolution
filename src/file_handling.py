@@ -131,13 +131,9 @@ def file_loader_Dawn_PDS3(filepath):
     # # Crop the cube a bit in horizontal direction
     # cube = cube[:, :100, :]
 
-    # Resample spectra to resemble ASPECT data
-    cube, wavelengths, fwhms = utils.ASPECT_resampling(cube, wavelengths, fwhms)
-    # TODO Interpolate data spatially to have same pixel count as ASPECT NIR?
-
     shape = cube.shape
-    w = shape[1]
     h = shape[0]
+    w = shape[1]
     l = shape[2]
 
     return h, w, l, cube, wavelengths, fwhms
@@ -209,33 +205,10 @@ def file_loader_Dawn_ISIS(filepath):
     vis_cube = np.transpose(vis_cube, (2, 1, 0))
     ir_cube = np.transpose(ir_cube, (2, 1, 0))
 
+    # Join the VIS and IR cubes into one, using IR channels for overlapping part
     cube, wavelengths, FWHMs = utils.join_VIR_VIS_and_IR(vis_cube=vis_cube, ir_cube=ir_cube,
                                                          vis_wavelengths=vis_wavelengths, ir_wavelengths=ir_wavelengths,
                                                          vis_fwhms=vis_FWHMs, ir_fwhms=ir_FWHMs)
-
-    # Resampling cube to ASPECT wavelengths
-    cube, wavelengths, FWHMs = utils.ASPECT_resampling(cube, wavelengths, FWHMs)
-
-    # Convert radiances to I/F
-    insolation = utils.solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
-                                        plot=False, resample=True)
-    cube = cube / insolation[:, 1]
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 20])
-    # plt.show()
-
-    # Interpolate each wavelength channel to ASPECT NIR spatial pixel count
-    width = constants.ASPECT_NIR_channel_shape[1]
-    height = constants.ASPECT_NIR_channel_shape[0]
-    resized = np.zeros((height, width, cube.shape[2]))
-    for channel in range(cube.shape[2]):
-        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_AREA)
-    cube = resized
-
-    # # Another sanity check plot
-    # plt.imshow(cube[:, :, 30])
-    # plt.show()
 
     shape = cube.shape
     h = shape[0]
