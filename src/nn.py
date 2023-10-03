@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from src import plotter
 from src import utils
 from src import file_handling
+from src import constants
 
 # Set manual seed for comparable results between training runs
 torch.manual_seed(42)
@@ -177,23 +178,36 @@ class TrainingData(Dataset):
             logging.info('Invalid training data type, ending execution')
             exit(1)
 
-        self.w = w
-        self.h = h
-        self.l = l
         if type != 'remote_sensing':  # no wavelength data for the remote sensing images used here
             self.wavelengths = wavelengths
             # self.abundance_count = abundance_count
 
-        l_half = int(self.l / 2)
+        # Make the data look like it came from ASPECT
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs)
+        NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
+
+        # Dimension order is [h, w, l]
+        self.w = test_data.shape[1]
+        self.h = test_data.shape[0]
+        self.l = test_data.shape[2]
 
         # Dimensions of the image must be [batches, bands, width, height] for convolution
         # Transform from original [h, w, bands] with transpose
-        self.cube = np.transpose(cube, (2, 1, 0))
+        test_data = np.transpose(test_data, (2, 1, 0))
+        NIR_data = np.transpose(NIR_data, (2, 1, 0))
 
-        first_half = self.cube[:l_half, :, :]
+        Y = np.zeros((2, NIR_data.shape[0], NIR_data.shape[1], NIR_data.shape[2]))  # add a dimension where the SWIR spectrum can be placed
+        Y[0, :, 0, 0] = SWIR_data
+        Y[1, :, :, :] = NIR_data
 
-        self.X = torch.from_numpy(first_half).float()
-        self.Y = torch.from_numpy(self.cube).float()
+        X = NIR_data
+
+        # l_half = int(self.l / 2)
+
+        # Convert the numpy arrays to torch tensors
+        self.X = torch.from_numpy(X).float()
+        self.Y = torch.from_numpy(Y).float()
+        self.cube = test_data
 
     def __len__(self):
         return 1
@@ -287,6 +301,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     enc = enc.to(device)
     dec = dec.to(device)
 
+    test_cube = torch.from_numpy(cube_original).float()
+    test_cube = torch.nan_to_num(torch.unsqueeze(test_cube, dim=0), nan=1)
+    test_cube = test_cube.to(device)
+
     def loss_fn(y_true, y_pred):
         # # Chop both true and predicted cubes in half with respect of wavelength
 
@@ -311,12 +329,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     # sum_grad = torch.sum(mean_grad)
         #     return mean_grad
 
-        short_y_true = y_true[:, :half_point, :, :]
-        long_y_true = y_true[:, half_point:, :, :]
+        short_y_true = y_true[:, 1, :, :, :]
+        long_y_true = y_true[:, 0, :, 0, 0]
 
-        y_pred = utils.apply_circular_mask(y_pred, w, h)
         short_y_pred = y_pred[:, :half_point, :, :]
         long_y_pred = y_pred[:, half_point:, :, :]
+
+        short_y_pred = utils.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=1)
+        long_y_pred = utils.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
 
         # Calculate short wavelength loss by comparing cubes. For loss metric MAPE
         # loss_short = MAPE(short_y_true, short_y_pred)
@@ -329,15 +349,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # loss_short_SAM = metric_SAM(short_y_pred, short_y_true)  # Using this function for masked cube breaks backprop: "RuntimeError: Function 'CatBackward0' returned nan values in its 0th output."
         loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
-        # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
-        long_y_true = torch.mean(long_y_true, dim=(
-            2, 3))  # TODO Move this calculation to preprocessing and only feed the mean spectrum into here
-        long_y_true = torch.unsqueeze(long_y_true, 2)
-        long_y_true = torch.unsqueeze(long_y_true, 3)
+        # # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
+        # long_y_true = torch.mean(long_y_true, dim=(
+        #     2, 3))  # TODO Move this calculation to preprocessing and only feed the mean spectrum into here
+        # long_y_true = torch.unsqueeze(long_y_true, 2)
+        # long_y_true = torch.unsqueeze(long_y_true, 3)
 
-        long_y_pred = torch.mean(long_y_pred, dim=(2, 3))
-        long_y_pred = torch.unsqueeze(long_y_pred, 2)
-        long_y_pred = torch.unsqueeze(long_y_pred, 3)
+        long_y_pred = torch.nanmean(long_y_pred, dim=(2, 3))
+        # long_y_pred = torch.unsqueeze(long_y_pred, 2)
+        # long_y_pred = torch.unsqueeze(long_y_pred, 3)
 
         loss_long = metric_mape(long_y_pred, long_y_true)
         loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
@@ -358,7 +378,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         return loss_sum
 
-    def test_fn(predcube, groundcube):
+    def test_fn(groundcube, predcube):
         """Calculate a test score for a prediction by comparing the predicted cube to a ground truth one.
         Very similar to loss_fn, but the long wavelengths are not averaged into single spectrum.
         N.B. This sort of testing is not possible if the approach is ever applied in practice!"""
@@ -414,7 +434,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             loss_item = loss.item()
 
-            test_score = test_fn(y, dec_pred)
+            test_score = test_fn(test_cube, dec_pred)
             test_item = test_score.item()
 
         if prints:
@@ -449,9 +469,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             endmembers_mid = endmembers[:, :, dec_kernel_mid, dec_kernel_mid]
             plotter.plot_endmembers(endmembers_mid, epoch)
 
+            # Get abundance maps from encoder predictions and plot them as images
+            abundances = utils.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
+            abundances = np.squeeze(abundances.cpu().detach().numpy())
+            plotter.plot_abundance_maps(abundances, epoch)
+
             final_pred = torch.squeeze(final_pred)
+            # Use same circular mask on the output, note that the order of width and height is opposite here
+            final_pred = utils.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
-            final_pred = utils.apply_circular_mask(final_pred, w, h)  # Use same circular mask on the output
 
             # Construct 3 channels to plot as false color images
             # Average the data for plotting over a few channels from the original cube and the reconstruction
@@ -462,8 +488,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                                 :, :]  # TODO replace hardcoded indices
                 false_col_rec = false_col_rec + final_pred[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i), :,
                                                 :]
-            false_col_org = false_col_org / np.max(false_col_org)
-            false_col_rec = false_col_rec / np.max(false_col_org)
+            # false_col_org = false_col_org / np.max(false_col_org)
+            # false_col_rec = false_col_rec / np.max(false_col_org)
 
             # juggle dimensions for plotting
             false_col_org = np.transpose(false_col_org, (2, 1, 0))
