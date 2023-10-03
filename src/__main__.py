@@ -21,14 +21,14 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
-    # Save logs into file
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)  # Setup the root logger.
-
-    now = datetime.now()
-    filename = now.strftime("%Y-%M-%d_%H:%M:%S")
-
-    logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
+    # # Save logs into file
+    # logger = logging.getLogger()
+    # logger.setLevel(logging.INFO)  # Setup the root logger.
+    #
+    # now = datetime.now()
+    # filename = now.strftime("%Y-%M-%d_%H:%M:%S")
+    #
+    # logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
 
     ############# SANDBOX ###############
     # TODO Cross test for two images?
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -68,15 +68,15 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_366636556_1.cub'))  # Vesta, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_367917915_1.cub'))  # Vesta, survey
 
-    # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module FOV specification # TODO Crop and mask before turning the thing into a tensor? And make radius comparable with aspect ratio
-    training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
+    # # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module FOV specification # TODO Crop and mask before turning the thing into a tensor? And make radius comparable with aspect ratio
+    # training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
     bands = training_data.l
 
     # parameters: {'endmember_count': 12, 'learning_rate': 0.00019193231850594397,
     #                                          'enc_layer_count': 7, 'e_filter_count': 335, 'e_kernel_size': 3,
     #                                          'kernel_reduction': 2, 'd_kernel_size': 3}
 
-    endmember_count = 12    # endmember_count = training_data.abundance_count
+    endmember_count = 12   # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                   'd_kernel_size': 3}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=15000, prints=True, plots=True)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=20000, prints=True, plots=True)
 
     ################# Hyperparameter optimization ##################
     # epochs = 10000
