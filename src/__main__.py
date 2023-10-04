@@ -43,7 +43,9 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # Set manual seed for comparable results between training runs
+    torch.manual_seed(42)
     ############################
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
@@ -68,8 +70,6 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_366636556_1.cub'))  # Vesta, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_367917915_1.cub'))  # Vesta, survey
 
-    # # Crop data and apply a circular mask: aspect ratio from ASPECT NIR module FOV specification # TODO Crop and mask before turning the thing into a tensor? And make radius comparable with aspect ratio
-    # training_data = utils.crop_and_mask(training_data, aspect_ratio=6.7/5.4)#, radius=100)
     bands = training_data.l
 
     # parameters: {'endmember_count': 12, 'learning_rate': 0.00019193231850594397,
@@ -94,16 +94,16 @@ if __name__ == '__main__':
                   'd_kernel_size': 3}
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=20000, prints=True, plots=True)
+    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=5000, prints=True, plots=True)
 
-    ################# Hyperparameter optimization ##################
-    # epochs = 10000
+    ################ Hyperparameter optimization ##################
+    # epochs = 5000
     #
     # # Optuna without ray
     # def objective(trial):
     #
     #     common_params = {'bands': bands,
-    #                      'endmember_count': trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
+    #                      'endmember_count': 4,  #  trial.suggest_int('endmember_count', 3, 12),  # TODO optimize this separately?
     #                      'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e1, log=True)}
     #
     #     enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     #
     # # Print summary of optimization run into log
     # logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
-
+    #
 
 
 
