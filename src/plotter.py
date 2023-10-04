@@ -12,6 +12,7 @@ import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from matplotlib import cm
 # from scipy.optimize import curve_fit
 
@@ -252,7 +253,7 @@ def plot_abundance_maps(abundances, epoch):
     fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
     axs = axs.flatten()
     for i in range(count):
-        im = axs[i].imshow(abundances[i, :, :], vmin=0, vmax=1)
+        im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=1))
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
