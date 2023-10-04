@@ -22,8 +22,6 @@ from src import utils
 from src import file_handling
 from src import constants
 
-# Set manual seed for comparable results between training runs
-torch.manual_seed(42)
 
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
@@ -526,6 +524,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                  final_pred[:, best_indices[0], best_indices[1]], tag='best', ax=axs[0,1])
             mid_ax = plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)],
                                  final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], tag='middle', ax=axs[1,0])
+            axs[1, 1].imshow(cube_original[20, :, :])
+            axs[1, 1].scatter(worst_indices[1], worst_indices[0], color='r', marker='o')
+            axs[1, 1].scatter(best_indices[1], best_indices[0], color='g', marker='o')
             folder = './figures/'
             image_name = f"spectra_worst_best_mid_e{epoch}.png"
             path = Path(folder, image_name)
