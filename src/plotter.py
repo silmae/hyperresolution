@@ -13,8 +13,13 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import matplotlib.patches as patches
 from matplotlib import cm
 # from scipy.optimize import curve_fit
+import cv2 as cv
+
+from src import utils
+from src import constants
 
 
 figsize = (12,6)
@@ -262,4 +267,35 @@ def plot_abundance_maps(abundances, epoch):
     path = Path(folder, image_name)
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
+
+
+def illustrate_ASPECT_FOV(frame):
+    height = constants.ASPECT_VIS_channel_shape[0] + 100
+    width = constants.ASPECT_VIS_channel_shape[1] + 100
+    frame = cv.resize(frame, (width, height), interpolation=cv.INTER_AREA)
+    fig, ax = plt.subplots()
+    ax.imshow(frame, cmap='gray')
+    rect_VIS = patches.Rectangle(xy=(50, 50),
+                                 width=constants.ASPECT_VIS_channel_shape[1],
+                                 height=constants.ASPECT_VIS_channel_shape[0],
+                                 linewidth=1.5, edgecolor='r', facecolor='none')
+    ax.add_patch(rect_VIS)
+    height_NIR =  int(constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0])
+    width_NIR = int(constants.ASPECT_NIR_FOV[1] / constants.ASPECT_VIS_FOV[1] * constants.ASPECT_VIS_channel_shape[1])
+    rect_NIR = patches.Rectangle(xy=(int(width / 2 - width_NIR / 2),
+                                     int(height / 2 - height_NIR / 2)),
+                                 width=width_NIR,
+                                 height=height_NIR,
+                                 linewidth=1.5, edgecolor='r', facecolor='none')
+    ax.add_patch(rect_NIR)
+    radius_SWIR = int(constants.ASPECT_SWIR_FOV / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0] / 2)
+    circ_SWIR = patches.Circle(xy=(int(width/2), int(height/2)), radius=radius_SWIR,
+                               linewidth=1.5, edgecolor='r', facecolor='none')
+    ax.add_patch(circ_SWIR)
+    ax.text(width/2, height/2, 'SWIR: \nFOV 5.85 deg, 1 pixel',
+            horizontalalignment='center',
+            verticalalignment='center',
+            fontsize=12, color='red')
+    plt.show()
+
 
