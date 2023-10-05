@@ -71,6 +71,8 @@ Dawn_ISIS_rot_deg_and_crop_indices = {'m-VIR_IR_1B_1_494387713_1.cub': VIR_IR_1B
 
 ASPECT_wavelengths = np.asarray(np.linspace(start=0.850, stop=2.500, num=60))
 ASPECT_FWHMs = np.zeros(shape=ASPECT_wavelengths.shape) + 0.040
+ASPECT_VIS_channel_shape = (1024, 1024)
+ASPECT_VIS_FOV = (10, 10)
 ASPECT_NIR_channel_shape = (512, 640)
 ASPECT_NIR_FOV = (5.4, 6.7)
 ASPECT_SWIR_FOV = 5.85
