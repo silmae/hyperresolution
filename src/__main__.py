@@ -15,6 +15,7 @@ import cv2 as cv
 
 from src import nn
 from src import utils
+from src import plotter
 
 
 if __name__ == '__main__':
@@ -31,6 +32,8 @@ if __name__ == '__main__':
     # logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
 
     ############# SANDBOX ###############
+
+    # plotter.illustrate_ASPECT_FOV()
     # TODO Cross test for two images?
 
     # isisimage = CubeFile.open("./datasets/DAWN/ISIS/m-VIR_IR_1B_1_589173531_1.cub")  # This is the largest image of these, Ceres
@@ -43,7 +46,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
     # Set manual seed for comparable results between training runs
     torch.manual_seed(42)
     ############################
