@@ -21,6 +21,13 @@ import cv2 as cv
 from src import utils
 from src import constants
 
+# PyPlot settings to be used in all plots
+plt.rcParams.update({'font.size': 12})
+plt.rcParams.update({'figure.autolayout': True})
+plt.rcParams.update({'savefig.dpi': 300})
+# LaTeX font for all text in all figures
+plt.rcParams['mathtext.fontset'] = 'stix'
+plt.rcParams['font.family'] = 'STIXGeneral'
 
 figsize = (12,6)
 """Figure size for two plot figures."""
@@ -258,7 +265,7 @@ def plot_abundance_maps(abundances, epoch):
     fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
     axs = axs.flatten()
     for i in range(count):
-        im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=1))
+        im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=10))
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
@@ -269,17 +276,27 @@ def plot_abundance_maps(abundances, epoch):
     plt.savefig(path, dpi=300)
 
 
-def illustrate_ASPECT_FOV(frame):
+def illustrate_ASPECT_FOV(background_image=False):
+    image_path = './datasets/Vesta_FC21B0014724_11354131448F1H.png' #Vesta_FC21B0003982_11223231340F7E.png'):
+    frame = cv.imread(image_path)
+    if background_image is False:
+        frame = frame / frame
     height = constants.ASPECT_VIS_channel_shape[0] + 100
     width = constants.ASPECT_VIS_channel_shape[1] + 100
     frame = cv.resize(frame, (width, height), interpolation=cv.INTER_AREA)
     fig, ax = plt.subplots()
-    ax.imshow(frame, cmap='gray')
+    ax.imshow(frame)#, cmap='gray')
+
     rect_VIS = patches.Rectangle(xy=(50, 50),
                                  width=constants.ASPECT_VIS_channel_shape[1],
                                  height=constants.ASPECT_VIS_channel_shape[0],
                                  linewidth=1.5, edgecolor='r', facecolor='none')
     ax.add_patch(rect_VIS)
+    ax.text(65, 65, 'VIS: FOV 10x10 deg, 1024x1024 pixels',
+            horizontalalignment='left',
+            verticalalignment='top',
+            fontsize=10, color='red')
+
     height_NIR =  int(constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0])
     width_NIR = int(constants.ASPECT_NIR_FOV[1] / constants.ASPECT_VIS_FOV[1] * constants.ASPECT_VIS_channel_shape[1])
     rect_NIR = patches.Rectangle(xy=(int(width / 2 - width_NIR / 2),
@@ -288,6 +305,11 @@ def illustrate_ASPECT_FOV(frame):
                                  height=height_NIR,
                                  linewidth=1.5, edgecolor='r', facecolor='none')
     ax.add_patch(rect_NIR)
+    ax.text(width/2 - width_NIR/2, height/2 - height_NIR/2 - 30, f'NIR: FOV {constants.ASPECT_NIR_FOV[1]}x{constants.ASPECT_NIR_FOV[0]} deg, {constants.ASPECT_NIR_channel_shape[1]}x{constants.ASPECT_NIR_channel_shape[0]} pixels',
+            horizontalalignment='left',
+            verticalalignment='bottom',
+            fontsize=10, color='red')
+
     radius_SWIR = int(constants.ASPECT_SWIR_FOV / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0] / 2)
     circ_SWIR = patches.Circle(xy=(int(width/2), int(height/2)), radius=radius_SWIR,
                                linewidth=1.5, edgecolor='r', facecolor='none')
@@ -295,7 +317,9 @@ def illustrate_ASPECT_FOV(frame):
     ax.text(width/2, height/2, 'SWIR: \nFOV 5.85 deg, 1 pixel',
             horizontalalignment='center',
             verticalalignment='center',
-            fontsize=12, color='red')
+            fontsize=10, color='red')
+    ax.xaxis.set_ticks([])
+    ax.yaxis.set_ticks([])
     plt.show()
 
 
