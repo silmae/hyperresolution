@@ -150,8 +150,8 @@ def plot_spectra(orig, pred, tag, ax):
     orig_grad = sum(abs(orig[1:] - orig[:-1]))
     pred_grad = sum(abs(pred[1:] - pred[:-1]))
 
-    ax.plot(orig, label=f'Original, grad: {orig_grad:.2f}')
-    ax.plot(pred, label=f'Prediction, grad: {pred_grad:.2f}')
+    ax.plot(constants.ASPECT_wavelengths, orig, label=f'Original, grad: {orig_grad:.2f}')
+    ax.plot(constants.ASPECT_wavelengths, pred, label=f'Prediction, grad: {pred_grad:.2f}')
     ax.legend()
     ax.set_title(f'{tag}')
 
@@ -169,8 +169,10 @@ def plot_endmembers(endmembers, epoch):
 
     fig = plt.figure()
     fig.suptitle('Endmember spectra')
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('I/F')
     for i in range(len(endmembers[0, :])):
-        plt.plot(endmembers[:, i])
+        plt.plot(constants.ASPECT_wavelengths, endmembers[:, i])
 
     folder = './figures/'
     image_name = f"endmembers_e{epoch}.{image_type}"
