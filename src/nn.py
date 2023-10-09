@@ -361,9 +361,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
         # loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
 
-        # # TV over endmember spectra
-        # total_variation = torch.norm(dec.layers[-1].weight.data[half_point+1:, :, :, :] - dec.layers[-1].weight.data[half_point:-1, :, :, :], p=2)
-
         # # TV over output spectra
         # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
 
@@ -372,7 +369,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}, total variation: {total_variation}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM + 10 * (1 - spatial_correlation)  # + 0.01 * total_variation
+        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM + 10 * (1 - spatial_correlation) #+ total_variation
 
         return loss_sum
 
@@ -427,6 +424,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             dec_pred = dec(enc_pred)
             final_pred = dec_pred
             loss = loss_fn(y, dec_pred)
+
+            # Total variation regularization of endmember spectra
+            TV = torch.autograd.Variable(torch.FloatTensor(1), requires_grad=True)
+            for i in range(common_params['endmember_count']):
+                kernel = dec.layers[-1].weight.data[:, i, :, :]
+                TV = TV + torch.norm(kernel[1:, :, :] - kernel[:-1, :, :], p=2)
+            TV_lambda = 0.01
+            loss = loss + TV_lambda * TV
+
             loss.backward()
             optimizer.step()
 
