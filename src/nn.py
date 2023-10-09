@@ -142,9 +142,9 @@ class Decoder(nn.Module):
             x = layer(x)
             # Force the weights to be positive, these will be the endmember spectra:
             layer.weight.data = layer.weight.data.clamp(min=0)
-            # # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
-            # variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
-            # layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
+            # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
+            variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
+            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
 
             # Set weights of the first decoder kernel to match the value used for masks
             orig_kernel = layer.weight.data[:, 0, :, :]
@@ -425,13 +425,20 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             final_pred = dec_pred
             loss = loss_fn(y, dec_pred)
 
-            # Total variation regularization of endmember spectra
-            TV = torch.autograd.Variable(torch.FloatTensor(1), requires_grad=True)
-            for i in range(common_params['endmember_count']):
-                kernel = dec.layers[-1].weight.data[:, i, :, :]
-                TV = TV + torch.norm(kernel[1:, :, :] - kernel[:-1, :, :], p=2)
-            TV_lambda = 0.01
-            loss = loss + TV_lambda * TV
+            # # FOR SOME REASON THE TV TERM BACKPROPAGATION DOES NOT WORK
+            # # Total variation regularization of endmember spectra
+            # TV = torch.tensor(0.0, requires_grad=True)
+            # # TV = torch.autograd.Variable(TV, requires_grad=True)
+            # TV = TV.to(device)
+            # metric_tv = torchmetrics.image.TotalVariation().to(device)
+            #
+            # for i in range(common_params['endmember_count']):
+            #     kernel = dec.layers[-1].weight.data[:, i, :, :]
+            #     # TV = TV + torch.norm(kernel[1:, :, :] - kernel[:-1, :, :], p=2)
+            #     TV = TV + metric_tv(torch.unsqueeze(kernel, dim=0))
+            #
+            # TV_lambda = 1
+            # loss = loss + TV_lambda * TV
 
             loss.backward()
             optimizer.step()
