@@ -195,7 +195,9 @@ class TrainingData(Dataset):
         NIR_data = np.transpose(NIR_data, (2, 1, 0))
 
         Y = np.zeros((2, NIR_data.shape[0], NIR_data.shape[1], NIR_data.shape[2]))  # add a dimension where the SWIR spectrum can be placed
-        Y[0, :, 0, 0] = SWIR_data
+        # Y[0, :, 0, 0] = SWIR_data
+        SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
+        Y[0, :SWIR_length, 0, 0] = SWIR_data
         Y[1, :, :, :] = NIR_data
 
         X = NIR_data
@@ -216,7 +218,7 @@ class TrainingData(Dataset):
 
 def init_network(enc_params, dec_params, common_params):
     enc = Encoder(enc_layer_count=2,
-                  band_count=int(common_params['bands'] / 2),
+                  band_count=enc_params['band_count'],
                   endmember_count=common_params['endmember_count'],
                   e_filter_count=enc_params['e_filter_count'],
                   e_kernel_size=enc_params['e_kernel_size'],
@@ -277,7 +279,7 @@ def tensor_image_corrcoeff(y_true, y_pred):
 
 def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True):
     bands = training_data.l
-    half_point = int(bands / 2)
+    half_point = constants.ASPECT_SWIR_start_channel_index  # int(bands / 2)
 
     # cube_original = training_data.Ys[1].numpy()  #training_data.cube
     cube_original = training_data.cube
@@ -328,7 +330,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     return mean_grad
 
         short_y_true = y_true[:, 1, :, :, :]
-        long_y_true = y_true[:, 0, :, 0, 0]
+        long_y_true = y_true[:, 0, :len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index, 0, 0]
 
         short_y_pred = y_pred[:, :half_point, :, :]
         long_y_pred = y_pred[:, half_point:, :, :]
@@ -557,4 +559,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                   file_name='nn_history',
                                   log_y=True)
 
-    return best_loss, best_test_loss
+    last_loss = train_losses[-1]
+    last_test_loss = test_scores[-1]
+
+    return best_loss, best_test_loss, last_loss, last_test_loss

@@ -304,7 +304,7 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
 
     # Convert radiances to I/F
     if convert_rad2refl:
-        insolation = solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
+        insolation = solar_irradiance(distance=constants.vesta_hc_dist, wavelengths=constants.ASPECT_wavelengths,
                                             plot=False, resample=True)
         cube = cube / insolation[:, 1]
 
@@ -329,8 +329,8 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
     test_cube = crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[0] /
                                                             constants.ASPECT_NIR_channel_shape[1], keep_dim=1)
 
-    cube_short = test_cube[:, :, :int(len(wavelengths) / 2)]
-    cube_long = cube[:, :, int(len(wavelengths) / 2):]
+    cube_short = test_cube[:, :, :constants.ASPECT_SWIR_start_channel_index]
+    cube_long = cube[:, :, constants.ASPECT_SWIR_start_channel_index:]
 
     SWIR_data = np.nanmean(cube_long, axis=(0, 1))
     NIR_data = cube_short
