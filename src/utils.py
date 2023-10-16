@@ -304,7 +304,7 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
 
     # Convert radiances to I/F
     if convert_rad2refl:
-        insolation = solar_irradiance(distance=constants.vesta_hc_dist, wavelengths=constants.ASPECT_wavelengths,
+        insolation = solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
                                             plot=False, resample=True)
         cube = cube / insolation[:, 1]
 
