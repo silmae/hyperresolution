@@ -1,6 +1,7 @@
 """"
-This file contains miscellaneous utility functions
+This file contains miscellaneous utility functions, mostly related to preprocessing of training data
 """
+
 import math
 
 import numpy as np
@@ -192,16 +193,6 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
     ASPECT_wavelengths = constants.ASPECT_wavelengths
     ASPECT_FWHMs = constants.ASPECT_FWHMs
 
-    # if min(ASPECT_wavelengths) <= min(wavelengths):
-    #     minimum = min(wavelengths)
-    # else:
-    #     minimum = min(ASPECT_wavelengths)
-    #
-    # if max(ASPECT_wavelengths) >= max(wavelengths):
-    #     maximum = max(wavelengths)
-    # else:
-    #     maximum = max(ASPECT_wavelengths)
-
     resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths, FWHMs, ASPECT_FWHMs)
 
     cube_resampled = np.zeros(shape=(cube.shape[0], cube.shape[1], len(ASPECT_wavelengths)))
@@ -296,8 +287,24 @@ def solar_irradiance(distance: float, wavelengths=constants.ASPECT_wavelengths, 
     return final
 
 
-def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=True):
-    """Take a spectral image from Dawn VIR and make it look like data from Milani's ASPECT's NIR and SWIR"""
+def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True):
+    """Take a spectral image from Dawn VIR and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
+    the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
+    specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
+    wavelength image into an image matching ASPECT NIR FOV and interpolates to match the pixel count of NIR.
+
+    :param cube:
+        Spectral image cube to be converted to look like ASPECT data
+    :param wavelengths:
+        Wavelength vector of the input spectral image cube
+    :param FWHMs:
+        Full-width-half-maximum vector of the wavelength channels, same length as the wavelength vector
+    :param convert_rad2refl:
+        Whether radiances of the input cube are converted to reflectances (to I/F)
+    :return: VIS_and_NIR_data, SWIR_data, test_data
+        Short wavelength spectral image cube, long wavelength point spectrum, complete spectral image cube with
+        wavelength channels covering the whole ASPECT wavelength range
+    """
 
     # Resample spectra to resemble ASPECT data
     cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
@@ -307,10 +314,6 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
         insolation = solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
                                             plot=False, resample=True)
         cube = cube / insolation[:, 1]
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 20])
-    # plt.show()
 
     # Crop the image to aspect ratio where one side is the larger of NIR FOV and one side is SWIR FOV
     aspect_ratio = max(constants.ASPECT_NIR_FOV) / constants.ASPECT_SWIR_FOV
@@ -333,7 +336,7 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
     cube_long = cube[:, :, constants.ASPECT_SWIR_start_channel_index:]
 
     SWIR_data = np.nanmean(cube_long, axis=(0, 1))
-    NIR_data = cube_short
+    VIS_and_NIR_data = cube_short
     test_data = test_cube
 
     # # Sanity check plot
@@ -343,35 +346,8 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, convert_rad2refl=Tru
     # plt.imshow(cube_long[:, :, 20])
     # plt.show()
 
-    return NIR_data, SWIR_data, test_data
+    return VIS_and_NIR_data, SWIR_data, test_data
 
-# TODO Make this work someday
-# def ASPECTify(cube, wavelengths, FWHMs, VIS=False, NIR1=True, NIR2=True, SWIR=True):
-#     """Take a spectral image and make it look like data from Milani's ASPECT"""
-#     if VIS:
-#         print('Sorry, the function can not currently work with the VIS portion of ASPECT')
-#         print('Stopping execution')
-#         exit(1)
-#
-#     # # ASPECT wavelength vectors: change these values later, if the wavelengths change!
-#     # ASPECT_VIS_wavelengths = np.linspace(start=0.650, stop=0.950, num=14)
-#     # ASPECT_NIR1_wavelengths = np.linspace(start=0.850, stop=0.1250, num=14)
-#     # ASPECT_NIR2_wavelengths = np.linspace(start=1.200, stop=0.1600, num=14)
-#     # ASPECT_SWIR_wavelengths = np.linspace(start=1.650, stop=2.500, num=30)
-#     # # ASPECT FOVs in degrees
-#     # ASPECT_VIS_FOV = 10  # 10x10 deg square
-#     # ASPECT_NIR_FOV_w = 6.7  # width
-#     # ASPECT_NIR_FOV_h = 5.4  # height
-#     # ASPECT_SWIR_FOV = 5.85  # circular
-#
-#     # Resample spectra to resemble ASPECT data
-#     cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
-#
-#     if (NIR1 or NIR2) and SWIR:
-#         # The largest is the SWIR circular FOV, and so it is the limiting factor
-#         # Cut the largest possible rectangle where one side is circular FOV, other is width of NIR. Then divide
-#         # along wavelength into NIR and SWIR, mask SWIR into circle and take mean spectrum, and cut NIR to size.
-#         return None
 
 
 

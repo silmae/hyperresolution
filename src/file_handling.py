@@ -6,79 +6,10 @@ import scipy.io  # for loading Matlab matrices
 import matplotlib.pyplot as plt
 import spectral.io.envi as envi
 import cv2 as cv
-import h5py
-import xarray as xr
 from planetaryimage import CubeFile
 
 from src import constants
 from src import utils
-
-
-def file_loader_rem_sens(filepath="./datasets/TinyAPEX.mat"):
-    mat = scipy.io.loadmat(filepath)
-    # mat = scipy.io.loadmat("./datasets/Samson.mat")
-    w = mat['W'][0][0]  # W is 2 dim matrix with 1 element
-    h = mat['H'][0][0]
-    l = mat['L'][0][0]
-    abundance_count = mat['p'][0][0]
-    cube_flat = np.array(mat['Y'])
-    cube_flat = cube_flat.transpose()
-    # plt.imshow(cube_flat)
-    # plt.show()
-    cube = cube_flat.reshape(h, w, l)
-
-    return h, w, l, abundance_count, cube
-
-
-def file_loader_rock(filepath):
-    d = h5py.File(filepath, 'r')
-    contents = list(d.keys())
-    cube = np.transpose(d['/hdr'], (1, 2, 0))
-    cube = np.nan_to_num(cube, nan=1)  # Original rock images are masked with NaN, replace those with a number
-
-    wavelengths = d['/wavelengths'][:]
-
-    # cube = cube[50:, 50:, :]
-
-    # # Sanity check plot
-    # plt.imshow(np.nanmean(cube, 2))
-    # plt.show()
-
-    dimensions = cube.shape
-    h = dimensions[0]
-    w = dimensions[1]
-    l = dimensions[2]
-
-    return h, w, l, cube, wavelengths
-
-
-def file_loader_luigi(filepath):
-    """
-    Loads data captured at University of Jyväskylä with an imager nicknamed "Luigi", saved as netcdf4 files.
-    :param filepath:
-        Path to file
-    :return: h, w, l, cube, wavelengths:
-        Height, width, length, image cube as ndarray, wavelength vector
-
-    """
-    data = xr.open_dataset(filepath)['reflectance']
-    cube = data.values
-
-    # The image is very large, crop to get manageable training time
-    cube = cube[75:300, 100:300, 0:120]
-
-    # # Sanity check plot
-    # plt.imshow(cube[:, :, 80])
-    # plt.show()
-
-    shape = cube.shape
-    w = shape[1]
-    h = shape[0]
-    l = shape[2]
-
-    wavelengths = data.wavelength.values
-
-    return h, w, l, cube, wavelengths
 
 
 def file_loader_Dawn_PDS3(filepath):

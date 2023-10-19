@@ -161,13 +161,7 @@ class TrainingData(Dataset):
 
     def __init__(self, type, filepath):
 
-        if type == 'remote_sensing':
-            h, w, l, abundance_count, cube = file_handling.file_loader_rem_sens(filepath)
-        elif type == 'rock':
-            h, w, l, cube, wavelengths = file_handling.file_loader_rock(filepath)
-        elif type == 'luigi':
-            h, w, l, cube, wavelengths = file_handling.file_loader_luigi(filepath)
-        elif type == 'DAWN_PDS3':
+        if type == 'DAWN_PDS3':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_PDS3(filepath)
             self.FWHMs = FWHMs
         elif type == 'DAWN_ISIS':
@@ -175,10 +169,6 @@ class TrainingData(Dataset):
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
-
-        if type != 'remote_sensing':  # no wavelength data for the remote sensing images used here
-            self.wavelengths = wavelengths
-            # self.abundance_count = abundance_count
 
         # Make the data look like it came from ASPECT
         NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs)
@@ -279,7 +269,7 @@ def tensor_image_corrcoeff(y_true, y_pred):
 
 def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True):
     bands = training_data.l
-    half_point = constants.ASPECT_SWIR_start_channel_index  # int(bands / 2)
+    SWIR_cutoff_index = constants.ASPECT_SWIR_start_channel_index
 
     # cube_original = training_data.Ys[1].numpy()  #training_data.cube
     cube_original = training_data.cube
@@ -289,6 +279,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     w = training_data.w
     h = training_data.h
 
+    # A data loader object needed to feed the data to the network
     data_loader = DataLoader(training_data, shuffle=False, batch_size=4)
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
@@ -306,72 +297,37 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     test_cube = test_cube.to(device)
 
     def loss_fn(y_true, y_pred):
-        # # Chop both true and predicted cubes in half with respect of wavelength
-
-        # https://discuss.pytorch.org/t/custom-loss-functions/29387 -Kimmo
-
-        # def MAPE(Y_actual, Y_Predicted):
-        #     abs_diff = torch.abs((Y_actual - Y_Predicted))
-        #     # zero mask
-        #     mask = (Y_actual != 0)
-        #     # initialize output tensor with desired value
-        #     norm = torch.full_like(Y_actual, fill_value=float('nan'))
-        #     norm[mask] = torch.div(abs_diff[mask], Y_actual[mask]) # divide by non-zero elements
-        #     norm = torch.nan_to_num(norm, posinf=1e10) # replace infinities with finite big number
-        #     mean_diff = torch.mean(norm)
-        #     mape = mean_diff * 100
-        #     return mape
-        #
-        # def mean_spectral_gradient(cube):
-        #     abs_grad = torch.abs(cube[:, 1:, :, :] - cube[:, :-1, :, :])
-        #     sum_grad = torch.sum(abs_grad, dim=(1))
-        #     mean_grad = torch.mean(sum_grad)
-        #     # sum_grad = torch.sum(mean_grad)
-        #     return mean_grad
+        """Calculating loss by comparing predicted spectral image cube to ground truth"""
 
         short_y_true = y_true[:, 1, :, :, :]
         long_y_true = y_true[:, 0, :len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index, 0, 0]
 
-        short_y_pred = y_pred[:, :half_point, :, :]
-        long_y_pred = y_pred[:, half_point:, :, :]
+        short_y_pred = y_pred[:, :SWIR_cutoff_index, :, :]
+        long_y_pred = y_pred[:, SWIR_cutoff_index:, :, :]
 
         short_y_pred = utils.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=1)
         long_y_pred = utils.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
 
-        # Calculate short wavelength loss by comparing cubes. For loss metric MAPE
-        # loss_short = MAPE(short_y_true, short_y_pred)
+        # Calculate short wavelength loss by comparing cubes. For loss metrics MAPE and SAM
         metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
-
-        # This thing can kill backprop even when called for a single spectrum
-        # metric_SAM = torchmetrics.SpectralAngleMapper(reduction='none').to(device)
-
         loss_short = metric_mape(short_y_pred, short_y_true)
-        # loss_short_SAM = metric_SAM(short_y_pred, short_y_true)  # Using this function for masked cube breaks backprop: "RuntimeError: Function 'CatBackward0' returned nan values in its 0th output."
+
         loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
-        # # Calculate long wavelength loss by comparing mean spectra of long wavelength cubes
-        # long_y_true = torch.mean(long_y_true, dim=(
-        #     2, 3))  # TODO Move this calculation to preprocessing and only feed the mean spectrum into here
-        # long_y_true = torch.unsqueeze(long_y_true, 2)
-        # long_y_true = torch.unsqueeze(long_y_true, 3)
-
+        # Calculate long wavelength loss by comparing mean spectrum of the masked prediction to GT spectrum
         long_y_pred = torch.nanmean(long_y_pred, dim=(2, 3))
-        # long_y_pred = torch.unsqueeze(long_y_pred, 2)
-        # long_y_pred = torch.unsqueeze(long_y_pred, 3)
-
         loss_long = metric_mape(long_y_pred, long_y_true)
-        loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
-        # loss_long_SAM = metric_SAM(long_y_pred, long_y_true)
 
-        # # TV over output spectra
-        # total_variation = torch.norm(y_pred[:, 1:, :, :] - y_pred[:, :-1, :, :], p=2)
+        loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
 
         # Correlation of GT cube spatial features and full reconstruction cube spatial features
         spatial_correlation = tensor_image_corrcoeff(short_y_true, y_pred)
-        # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}, total variation: {total_variation}')
+
+        # # Printing the losses separately for debugging purposes
+        # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM + 10 * (1 - spatial_correlation) #+ total_variation
+        loss_sum = loss_short + loss_short_SAM + 10 * loss_long + 10 * loss_long_SAM + 10 * (1 - spatial_correlation)
 
         return loss_sum
 
@@ -381,8 +337,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         N.B. This sort of testing is not possible if the approach is ever applied in practice!"""
 
         # Only the errors of the latter half are really interesting, so discard the shorter channels
-        predcube = predcube[:, half_point:, :, :]
-        groundcube = groundcube[:, half_point:, :, :]
+        predcube = predcube[:, SWIR_cutoff_index:, :, :]
+        groundcube = groundcube[:, SWIR_cutoff_index:, :, :]
 
         score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
@@ -397,6 +353,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         {'params': dec.parameters()}
     ]
 
+    # Defining the optimizer and setting its learning rate
     optimizer = torch.optim.Adam(params_to_optimize, lr=common_params['learning_rate'])
 
     # For storing performance results
@@ -426,27 +383,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             dec_pred = dec(enc_pred)
             final_pred = dec_pred
             loss = loss_fn(y, dec_pred)
-
-            # # FOR SOME REASON THE TV TERM BACKPROPAGATION DOES NOT WORK
-            # # Total variation regularization of endmember spectra
-            # TV = torch.tensor(0.0, requires_grad=True)
-            # # TV = torch.autograd.Variable(TV, requires_grad=True)
-            # TV = TV.to(device)
-            # metric_tv = torchmetrics.image.TotalVariation().to(device)
-            #
-            # for i in range(common_params['endmember_count']):
-            #     kernel = dec.layers[-1].weight.data[:, i, :, :]
-            #     # TV = TV + torch.norm(kernel[1:, :, :] - kernel[:-1, :, :], p=2)
-            #     TV = TV + metric_tv(torch.unsqueeze(kernel, dim=0))
-            #
-            # TV_lambda = 1
-            # loss = loss + TV_lambda * TV
-
             loss.backward()
             optimizer.step()
 
             loss_item = loss.item()
-
             test_score = test_fn(test_cube, dec_pred)
             test_item = test_score.item()
 
@@ -454,8 +394,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             sys.stdout.write('\r')
             sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item}   test: {test_item}")
 
-            # logging.info(f"Epoch {epoch}/{n_epochs} loss: {loss_item}")
-            # logging.info(f"Epoch {epoch}/{n_epochs} test: {test_item}")
         train_losses.append(loss_item)
         test_scores.append(test_item)
 
@@ -497,12 +435,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             for i in range(10):
-                false_col_org = false_col_org + cube_original[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i),
+                false_col_org = false_col_org + cube_original[(SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
                                                 :, :]  # TODO replace hardcoded indices
-                false_col_rec = false_col_rec + final_pred[(half_point + 5 + i, half_point + 15 + i, bands - 5 - i), :,
+                false_col_rec = false_col_rec + final_pred[(SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i), :,
                                                 :]
-            # false_col_org = false_col_org / np.max(false_col_org)
-            # false_col_rec = false_col_rec / np.max(false_col_org)
 
             # juggle dimensions for plotting
             false_col_org = np.transpose(false_col_org, (2, 1, 0))

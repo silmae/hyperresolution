@@ -61,20 +61,6 @@ max_ticks = 8
 image_type = 'png'
 
 
-def join(*args) -> str:
-    """Custom join function to avoid problems using os.path.join. """
-
-    n = len(args)
-    s = ''
-    for i,arg in enumerate(args):
-        if i == n-1:
-            s = s + arg
-        else:
-            s = s + arg + '/'
-    p = os.path.normpath(s)
-    return p
-
-
 def plot_false_color(false_org, false_reconstructed, epoch, dont_show=True, save_thumbnail=True) -> None:
     """
 
