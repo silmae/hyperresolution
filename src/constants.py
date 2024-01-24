@@ -73,9 +73,13 @@ Dawn_ISIS_rot_deg_and_crop_indices = {'m-VIR_IR_1B_1_494387713_1.cub': VIR_IR_1B
                                       'm-VIR_VIS_1B_1_486875439_1.cub': VIR_VIS_1B_1_486875439_1
                                       }
 
+# Approximate indices to select the data close to ASPECT wavelength range, leaving some channels below and above
+VIR_channels_start_index = 180
+VIR_channels_stop_index = 563
+
 # Parameters related to ASPECT properties
 # ASPECT_wavelengths = np.asarray(np.linspace(start=0.850, stop=2.500, num=60))  # only NIR and SWIR
-ASPECT_wavelengths = np.asarray(np.linspace(start=0.650, stop=2.500, num=70))  # approximate adding VIS  # TODO Make this realistic by combining two vectors for wls and FWHMs
+ASPECT_wavelengths = np.asarray(np.linspace(start=0.650, stop=2.450, num=70))  # approximate adding VIS  # TODO Make this realistic by combining two vectors for wls and FWHMs
 ASPECT_FWHMs = np.zeros(shape=ASPECT_wavelengths.shape) + 0.040
 ASPECT_SWIR_start_channel_index = 40
 
