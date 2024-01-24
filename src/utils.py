@@ -1,7 +1,7 @@
 """"
 This file contains miscellaneous utility functions, mostly related to preprocessing of training data
 """
-
+import copy
 import math
 
 import numpy as np
@@ -9,11 +9,16 @@ from matplotlib import pyplot as plt
 from torch import Tensor
 import torch
 import spectral
-from scipy import ndimage, misc
+from scipy import ndimage, misc, interpolate
+from scipy.integrate import trapezoid
+import scipy
 import cv2 as cv
 
 from src import constants
+import utils
 
+# Epsilon value for outlier removal
+_num_eps = 0.000001
 
 def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center: tuple = None,
                         radius: int = None, masking_value=1) -> np.ndarray or torch.Tensor:
@@ -287,7 +292,7 @@ def solar_irradiance(distance: float, wavelengths=constants.ASPECT_wavelengths, 
     return final
 
 
-def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True):
+def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True):
     """Take a spectral image from Dawn VIR and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
     the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
     specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
@@ -301,19 +306,67 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
         Full-width-half-maximum vector of the wavelength channels, same length as the wavelength vector
     :param convert_rad2refl:
         Whether radiances of the input cube are converted to reflectances (to I/F)
+    :param smoothing:
+        Whether the spectra of the input cube image should go through outlier removal and Gaussian smoothing
     :return: VIS_and_NIR_data, SWIR_data, test_data
         Short wavelength spectral image cube, long wavelength point spectrum, complete spectral image cube with
         wavelength channels covering the whole ASPECT wavelength range
     """
+    # Crop the VIR cube to contain a bit more than the useful wavelengths: no useless processing, and less edge artifacts
+    cube = cube[:, :, constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
+    wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
+    FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
+
+    if smoothing:
+        # Outlier removal and denoising: asteroid spectra should be very smooth with features tens or even hundreds nm wide
+        unsmoothed_spectrum = copy.deepcopy(cube[50, 50, :])  # save an unsmoothed spectrum for comparison later
+        orig_wls = copy.deepcopy(wavelengths)
+        # Remove outliers separately for each spectrum
+        smoothed_cube = np.zeros(shape=np.shape(cube))
+        for i in range(np.shape(cube)[0]):
+            for j in range(np.shape(cube)[1]):
+                test_spectrum = cube[i, j, :]
+                smoothed_cube[i, j, :] = utils.interpolate_outliers(test_spectrum, wavelengths, num_eps=1e-20)  # smaller epsilon increases sensitivity
+                # print(f'Removed outliers from spectrum ({i}, {j}) out of {np.shape(cube)[:2]}')
+        # plt.figure()
+        # plt.plot(wavelengths, cube[50, 50, :])
+        # plt.plot(wavelengths, smoothed_cube[50, 50, :])
+        # plt.show()
+        cube = smoothed_cube
+
+        # Smoothing with a Gaussian kernel: once before resampling and converting to I/F, again after
+        smoothed_cube = utils.denoise_array(cube, 0.01, wavelengths)
+        # plt.figure()
+        # plt.plot(wavelengths, cube[50, 50, :])
+        # plt.plot(wavelengths, smoothed_cube[50, 50, :])
+        # plt.show()
+        cube = smoothed_cube
 
     # Resample spectra to resemble ASPECT data
     cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
 
     # Convert radiances to I/F
     if convert_rad2refl:
-        insolation = solar_irradiance(distance=constants.ceres_hc_dist, wavelengths=constants.ASPECT_wavelengths,
+        insolation = solar_irradiance(distance=constants.vesta_hc_dist, wavelengths=constants.ASPECT_wavelengths,
                                             plot=False, resample=True)
         cube = cube / insolation[:, 1]
+
+    if smoothing:
+        # Convert an unsmoothed test spectrum
+        unsmoothed_spectrum = unsmoothed_spectrum / solar_irradiance(distance=constants.vesta_hc_dist, wavelengths=orig_wls,
+                                                plot=False, resample=True)[:, 1]
+
+        # Smoothing with a Gaussian kernel: second time, now for the resampled and I/F converted spectra
+        smoothed_cube = utils.denoise_array(cube, 0.02, wavelengths)
+        # plt.figure()
+        # # plt.plot(wavelengths, cube[50, 50, :])
+        # plt.plot(orig_wls, unsmoothed_spectrum, label='Original')
+        # plt.plot(wavelengths, smoothed_cube[50, 50, :], label='Smoothed')
+        # plt.xlabel('Wavelength [µm]')
+        # plt.ylabel('I/F')
+        # plt.legend()
+        # plt.show()
+        cube = smoothed_cube
 
     # Crop the image to aspect ratio where one side is the larger of NIR FOV and one side is SWIR FOV
     aspect_ratio = max(constants.ASPECT_NIR_FOV) / constants.ASPECT_SWIR_FOV
@@ -339,17 +392,191 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     VIS_and_NIR_data = cube_short
     test_data = test_cube
 
-    # # Sanity check plot
+    # Sanity check plots
     # plt.figure()
     # plt.imshow(cube_short[:, :, 20])
     # plt.figure()
     # plt.imshow(cube_long[:, :, 20])
+    # plt.figure()
+    # plt.plot(test_cube[300, 300, :])
+    # plt.plot(test_cube[200, 200, :])
+    # plt.plot(test_cube[400, 400, :])
     # plt.show()
 
     return VIS_and_NIR_data, SWIR_data, test_data
 
 
+def find_outliers(y: np.ndarray, x: np.ndarray or None = None,
+                  z_thresh: float = 1., num_eps: float = _num_eps) -> np.ndarray:
+    if x is None: x = np.arange(len(y))
+    """Function by David Korda"""
+
+    if len(np.unique(x)) != len(x):
+        raise ValueError('"x" input must be unique.')
+
+    inds = np.argsort(x)
+    x_iterate, y_iterate = x[inds], y[inds]
+
+    z_thresh = np.clip(z_thresh, a_min=num_eps, a_max=None)
+
+    i = 0  # counts iterations (now needed only for edge outlier removal)
+
+    def return_mean_std(data):
+        mean = np.mean(data)
+        std = np.std(data)
+        return mean, std
+
+    while True:
+        deriv = np.diff(y_iterate) / np.diff(x_iterate)
+        mu, sigma = return_mean_std(deriv)
+        z_score = (deriv - mu) / sigma
+
+        positive = np.where(z_score > z_thresh)[0]
+        negative = np.where(-z_score > z_thresh)[0]
+
+        # noise -> the points are next to each other (overlap if compensated for "diff" shift)
+        # outliers = np.stack((np.intersect1d(positive, negative + 1), np.intersect1d(negative, positive + 1)))
+        outliers = np.array([])
+        outliers = np.append(outliers, np.intersect1d(positive, negative + 1))
+        outliers = np.append(outliers, np.intersect1d(negative, positive + 1))
+
+        if i == 0:  # check edges of the original data
+            if 0 in positive or 0 in negative:  # first index is outlier
+                outliers = np.append(outliers, [0])
+
+            # last index is outlier
+            if (len(z_score) - 1) in positive or (len(z_score) - 1) in negative:  # -1 to count "len" from 0
+                outliers = np.append(outliers, [len(x_iterate) - 1])
+
+        if np.size(outliers) == 0:
+            break
+
+        outliers = outliers.astype(int)
+        x_iterate, y_iterate = np.delete(x_iterate, outliers), np.delete(y_iterate, outliers)
+        i += 1
+
+    # outliers are shifted due to deleting the two iterables
+    return np.where([x_test not in x_iterate for x_test in x])[0]
 
 
+def remove_outliers(y: np.ndarray, x: np.ndarray or None = None,
+                    z_thresh: float = 1., num_eps: float = _num_eps) -> np.ndarray or tuple[np.ndarray, ...]:
+    inds_to_remove = find_outliers(y=y, x=x, z_thresh=z_thresh, num_eps=num_eps)
+    """Function by David Korda"""
 
+    if x is None:
+        return np.delete(y, inds_to_remove)
+
+    return np.delete(y, inds_to_remove), np.delete(x, inds_to_remove)
+
+
+def interpolate_outliers(y: np.ndarray, x: np.ndarray or None = None,
+                    z_thresh: float = 1., num_eps: float = _num_eps) -> np.ndarray:
+    if x is None: x = np.arange(len(y))
+    """Function by David Korda"""
+
+    inds_to_remove = find_outliers(y=y, x=x, z_thresh=z_thresh, num_eps=num_eps)
+    x_no_out, y_no_out = np.delete(x, inds_to_remove), np.delete(y, inds_to_remove)
+
+    # interpolation first
+    inds_in = np.logical_and(x >= np.min(x_no_out), x <= np.max(x_no_out))
+    x_in = x[inds_in]  # x corrected for possible edges to avoid cubic extrapolation
+    y_in = interpolate.interp1d(x_no_out, y_no_out, kind=gimme_kind(x_no_out))(x_in)
+
+    # linearly extrapolate the interpolated values if needed
+    return interpolate.interp1d(x_in, y_in, kind="linear", fill_value="extrapolate")(x)
+
+
+def gimme_kind(x: np.ndarray) -> str:
+    """Function by David Korda"""
+
+    if len(x) > 3:
+        return "cubic"
+    if len(x) > 1:
+        return "linear"
+    return "nearest"
+
+
+def denoise_array(array: np.ndarray, sigma: float, x: np.ndarray or None = None,
+                  remove_mean: bool = False, sum_or_int: str or None = None) -> np.ndarray:
+    """Function by David Korda.
+    Modified to always use the method for equidistant data and never use the normalization"""
+
+    if x is None:
+        x = np.arange(0., np.shape(array)[-1])  # 0. to convert it to float
+
+    # equidistant_measure = np.var(np.diff(x))
+
+    # if equidistant_measure == 0.:  # equidistant step -> standard gaussian convolution
+    step = x[1] - x[0]
+    # correction = ndimage.gaussian_filter1d(np.ones(len(x)), sigma=sigma / step, mode="constant")
+    array_denoised = ndimage.gaussian_filter1d(array, sigma=sigma / step, mode="nearest")
+
+        # array_denoised = normalise_in_columns(array_denoised, norm_vector=correction)
+
+
+    # else:  # transmission application
+    #     if sum_or_int is None:  # 3 is randomly chosen. Better to do sum if there are too large gaps in wavelengths
+    #         sum_or_int = "sum" if equidistant_measure > 3. else "int"
+    #
+    #     filter = scipy.norm.pdf(np.reshape(x, (len(x), 1)), loc=x, scale=sigma)  # Gaussian filter
+    #
+    #     # need num_filters x num_wavelengths
+    #     if np.ndim(filter) == 1:
+    #         filter = np.reshape(filter, (1, -1))
+    #     if np.ndim(filter) > 2:
+    #         raise ValueError("Filter must be 1-D or 2-D array.")
+    #
+    #     if sum_or_int == "sum":
+    #         filter = normalise_in_rows(filter)
+    #     else:
+    #         filter = normalise_in_rows(filter, trapezoid(y=filter, x=x))
+    #
+    #     if sum_or_int == "sum":
+    #         array_denoised = array @ np.transpose(filter)
+    #     else:
+    #         array_denoised = trapezoid(y=np.einsum('...j, kj -> ...kj', array, filter), x=x)
+
+    if remove_mean:  # here I assume that the noise has a zero mean
+        mn = np.mean(array_denoised - array, axis=-1, keepdims=True)
+    else:
+        mn = 0.
+
+    return array_denoised - mn
+
+## The rest are currently not used
+# def normalise_array(array: np.ndarray,
+#                     axis: int or None = None,
+#                     norm_vector: np.ndarray or None = None,
+#                     norm_constant: float = 1.,
+#                     num_eps: float = _num_eps) -> np.ndarray:
+#     """Function by David Korda"""
+#
+#     if norm_vector is None:
+#         norm_vector = np.nansum(array, axis=axis, keepdims=True)
+#
+#     # to force correct dimensions (e.g. when passing the output of interp1d)
+#     if np.ndim(norm_vector) != np.ndim(array) and np.ndim(norm_vector) > 0:
+#         norm_vector = np.expand_dims(norm_vector, axis=axis)
+#
+#     if np.any(np.abs(norm_vector) < num_eps):
+#         print("You normalise with (almost) zero values. Check the normalisation vector.")
+#
+#     return array / norm_vector * norm_constant
+#
+#
+# def normalise_in_columns(array: np.ndarray,
+#                          norm_vector: np.ndarray or None = None,
+#                          norm_constant: float = 1.) -> np.ndarray:
+#     """Function by David Korda"""
+#
+#     return normalise_array(array, axis=0, norm_vector=norm_vector, norm_constant=norm_constant)
+#
+#
+# def normalise_in_rows(array: np.ndarray,
+#                       norm_vector: np.ndarray or None = None,
+#                       norm_constant: float = 1.) -> np.ndarray:
+#     """Function by David Korda"""
+#
+#     return normalise_array(array, axis=1, norm_vector=norm_vector, norm_constant=norm_constant)
 
