@@ -292,7 +292,7 @@ def solar_irradiance(distance: float, wavelengths=constants.ASPECT_wavelengths, 
     return final
 
 
-def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True):
+def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True):
     """Take a spectral image from Dawn VIR and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
     the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
     specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
@@ -377,7 +377,7 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     width = constants.ASPECT_NIR_channel_shape[1]
     resized = np.zeros((height, width, cube.shape[2]))
     for channel in range(cube.shape[2]):
-        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_AREA)
+        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_CUBIC)
     cube = resized
 
     cube = apply_circular_mask(cube, height, width, masking_value=float('nan'))
@@ -387,6 +387,11 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
 
     cube_short = test_cube[:, :, :constants.ASPECT_SWIR_start_channel_index]
     cube_long = cube[:, :, constants.ASPECT_SWIR_start_channel_index:]
+
+    # Apply vignetting on the SWIR part, the shorter channels are considered ideally flat-fielded
+    if vignetting:
+        cube_long = apply_vignetting(cube_long)
+        #
 
     SWIR_data = np.nanmean(cube_long, axis=(0, 1))
     VIS_and_NIR_data = cube_short
@@ -404,6 +409,57 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     # plt.show()
 
     return VIS_and_NIR_data, SWIR_data, test_data
+
+
+def apply_vignetting(cube: np.ndarray, sigma=None, keep_mean_intensity=True):
+    """
+    Applies Gaussian vignetting to each channel of spectral image.
+    From https://www.geeksforgeeks.org/create-a-vignette-filter-using-python-opencv/
+    :param cube:
+        Spectral image cube
+    :param sigma:
+        Width of Gaussian kernel. If None, uses half of image height
+    :param keep_mean_intensity:
+        Whether to keep the mean intensity of the input cube: if true, adjust vignetted cube by multiplying with constant
+    :return:
+        Vignetted spectral image cube
+    """
+    cols, rows = cube.shape[0], cube.shape[1]
+
+    if sigma == None:
+        sigma = cols * 0.5
+
+    # generating vignette mask using Gaussian
+    # resultant_kernels
+    Y_resultant_kernel = cv.getGaussianKernel(rows, sigma)
+    X_resultant_kernel = cv.getGaussianKernel(cols, sigma)
+
+    # generating resultant_kernel matrix
+    resultant_kernel = X_resultant_kernel * Y_resultant_kernel.T
+
+    # creating mask and normalising by using np.linalg
+    # function
+    # mask = 255 * resultant_kernel / np.linalg.norm(resultant_kernel)
+    mask = resultant_kernel / np.max(resultant_kernel)
+    vignetted_cube = np.copy(cube)
+
+    # applying the mask to each channel in the input image
+    for i in range(cube.shape[2]):  # Looping is slow, but there are few channels in ASPECT data
+        vignetted_cube[:, :, i] = vignetted_cube[:, :, i] * mask
+
+    if keep_mean_intensity:
+        orig_mean_intensity = np.nanmean(cube)
+        vignetted_mean_intensity = np.nanmean(vignetted_cube)
+        vignetted_cube = vignetted_cube / (vignetted_mean_intensity / orig_mean_intensity)
+        vignetted_mean_intensity = np.nanmean(vignetted_cube)
+
+
+    # fig, ax = plt.subplots(nrows=1, ncols=2)
+    # ax[0].imshow(cube[:, :, 10])
+    # ax[1].imshow(vignetted_cube[:, :, 10])
+    # plt.show()
+
+    return vignetted_cube
 
 
 def find_outliers(y: np.ndarray, x: np.ndarray or None = None,

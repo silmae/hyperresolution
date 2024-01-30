@@ -171,7 +171,7 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs)
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=True)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
@@ -415,10 +415,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if plots is True and (epoch % 1000 == 0 or epoch == n_epochs - 1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
-            # Retrieve endmember spectra from middle of decoder kernels and plot them
-            dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
-            endmembers_mid = endmembers[:, :, dec_kernel_mid, dec_kernel_mid]
-            plotter.plot_endmembers(endmembers_mid, epoch)
+            # Retrieve endmember spectra by summing the weights of each kernel
+            # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
+            endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
+            plotter.plot_endmembers(endmembers, epoch)
 
             # Get abundance maps from encoder predictions and plot them as images
             abundances = utils.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
