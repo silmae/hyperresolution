@@ -22,7 +22,6 @@ from src import utils
 from src import file_handling
 from src import constants
 
-
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
 
@@ -144,7 +143,8 @@ class Decoder(nn.Module):
             layer.weight.data = layer.weight.data.clamp(min=0)
             # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
             variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
-            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :, :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
+            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :,
+                                             :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
 
             # Set weights of the first decoder kernel to match the value used for masks
             orig_kernel = layer.weight.data[:, 0, :, :]
@@ -184,7 +184,8 @@ class TrainingData(Dataset):
         test_data = np.transpose(test_data, (2, 1, 0))
         NIR_data = np.transpose(NIR_data, (2, 1, 0))
 
-        Y = np.zeros((2, NIR_data.shape[0], NIR_data.shape[1], NIR_data.shape[2]))  # add a dimension where the SWIR spectrum can be placed
+        Y = np.zeros((2, NIR_data.shape[0], NIR_data.shape[1],
+                      NIR_data.shape[2]))  # add a dimension where the SWIR spectrum can be placed
         # Y[0, :, 0, 0] = SWIR_data
         SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
         Y[0, :SWIR_length, 0, 0] = SWIR_data
@@ -305,8 +306,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         short_y_pred = y_pred[:, :SWIR_cutoff_index, :, :]
         long_y_pred = y_pred[:, SWIR_cutoff_index:, :, :]
 
-        short_y_pred = utils.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=1)
-        long_y_pred = utils.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
+        short_y_pred = utils.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                 masking_value=1)
+        long_y_pred = utils.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                masking_value=torch.nan)
 
         # Calculate short wavelength loss by comparing cubes. For loss metrics MAPE and SAM
         metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
@@ -381,6 +384,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
             dec_pred = dec(enc_pred)
+
+            # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
+            # from the decoder kernel operating on the masked values
+            dec_pred = utils.apply_circular_mask(dec_pred, w, h,
+                                                 radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
+                                                     'd_kernel_size'], masking_value=1)
+            test_cube = utils.apply_circular_mask(test_cube, w, h,
+                                                  radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
+                                                      'd_kernel_size'], masking_value=1)
             final_pred = dec_pred
             loss = loss_fn(y, dec_pred)
             loss.backward()
@@ -421,13 +433,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_endmembers(endmembers, epoch)
 
             # Get abundance maps from encoder predictions and plot them as images
-            abundances = utils.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=torch.nan)
+            abundances = utils.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                   masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
             plotter.plot_abundance_maps(abundances, epoch)
 
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
-            final_pred = utils.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius, masking_value=0)
+            final_pred = utils.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                   masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
 
             # Construct 3 channels to plot as false color images
@@ -435,9 +449,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
             for i in range(10):
-                false_col_org = false_col_org + cube_original[(SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
+                false_col_org = false_col_org + cube_original[
+                                                (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
                                                 :, :]  # TODO replace hardcoded indices
-                false_col_rec = false_col_rec + final_pred[(SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i), :,
+                false_col_rec = false_col_rec + final_pred[
+                                                (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
+                                                :,
                                                 :]
 
             # juggle dimensions for plotting
@@ -470,11 +487,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             fig, axs = plt.subplots(nrows=2, ncols=2, layout='constrained')
             worst_ax = plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]],
-                                 final_pred[:, worst_indices[0], worst_indices[1]], tag='worst', ax=axs[0,0])
+                                            final_pred[:, worst_indices[0], worst_indices[1]], tag='worst',
+                                            ax=axs[0, 0])
             best_ax = plotter.plot_spectra(cube_original[:, best_indices[0], best_indices[1]],
-                                 final_pred[:, best_indices[0], best_indices[1]], tag='best', ax=axs[0,1])
+                                           final_pred[:, best_indices[0], best_indices[1]], tag='best', ax=axs[0, 1])
             mid_ax = plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)],
-                                 final_pred[:, int(training_data.w / 2), int(training_data.h / 2)], tag='middle', ax=axs[1,0])
+                                          final_pred[:, int(training_data.w / 2), int(training_data.h / 2)],
+                                          tag='middle', ax=axs[1, 0])
             axs[1, 1].imshow(cube_original[20, :, :])
             axs[1, 1].scatter(worst_indices[1], worst_indices[0], color='r', marker='o')
             axs[1, 1].scatter(best_indices[1], best_indices[0], color='g', marker='o')
