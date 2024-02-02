@@ -171,7 +171,7 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=True)
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=False)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
@@ -383,24 +383,24 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             optimizer.zero_grad()  # Reset gradients
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
-            dec_pred = dec(enc_pred)
+            final_pred = dec(enc_pred)
 
-            # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
-            # from the decoder kernel operating on the masked values
-            dec_pred = utils.apply_circular_mask(dec_pred, w, h,
-                                                 radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
-                                                     'd_kernel_size'], masking_value=1)
-            test_cube = utils.apply_circular_mask(test_cube, w, h,
-                                                  radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
-                                                      'd_kernel_size'], masking_value=1)
-            final_pred = dec_pred
-            loss = loss_fn(y, dec_pred)
+            loss = loss_fn(y, final_pred)
             loss.backward()
             optimizer.step()
 
             loss_item = loss.item()
-            test_score = test_fn(test_cube, dec_pred)
+            test_score = test_fn(test_cube, final_pred)
             test_item = test_score.item()
+
+            # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
+            # from the decoder kernel operating on the masked values
+            final_pred = utils.apply_circular_mask(final_pred, w, h,
+                                                   radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
+                                                       'd_kernel_size'], masking_value=1)
+            # test_cube = utils.apply_circular_mask(test_cube, w, h,
+            #                                       radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
+            #                                           'd_kernel_size'], masking_value=1)
 
         if prints:
             sys.stdout.write('\r')

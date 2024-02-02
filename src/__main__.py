@@ -92,14 +92,14 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.000331}
+                     'learning_rate': 0.000450}
 
-    enc_params = {'enc_layer_count': 3,
+    enc_params = {'enc_layer_count': 4,
                   'band_count': constants.ASPECT_SWIR_start_channel_index,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 150,
+                  'e_filter_count': 161,
                   'e_kernel_size': 6,
-                  'kernel_reduction': 1}
+                  'kernel_reduction': 0}
 
     dec_params = {'band_count': common_params['bands'],
                   'endmember_count': common_params['endmember_count'],
