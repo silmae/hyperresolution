@@ -153,6 +153,19 @@ def file_loader_Dawn_ISIS(filepath):
     return h, w, l, cube, wavelengths, FWHMs
 
 
+def file_loader_simulated_Didymos(filepath):
+    datadict = scipy.io.loadmat(filepath)
+    cube = datadict['cube'] * 1000
+    wavelengths = datadict['wavelengths'] / 1000
+    h = np.shape(cube)[0]
+    w = np.shape(cube)[1]
+    l = np.shape(cube)[2]
+
+    FWHMs = np.zeros(shape=wavelengths.shape) + 0.040
+
+    return h, w, l, cube, wavelengths, FWHMs
+
+
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
     """
     Open a Dawn VIR IR or VIS ISIS image from disc using the planetaryimage package.

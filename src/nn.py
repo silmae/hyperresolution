@@ -52,6 +52,10 @@ def SAM(s1, s2):
     return angle
 
 
+def R2_distance(s1, s2):
+    return np.sqrt(np.sum((s1 - s2)**2))
+
+
 class Encoder(nn.Module):
 
     def __init__(self, enc_layer_count=3, e_filter_count=48, e_kernel_size=7, kernel_reduction=2, band_count=100,
@@ -166,17 +170,19 @@ class TrainingData(Dataset):
             self.FWHMs = FWHMs
         elif type == 'DAWN_ISIS':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_ISIS(filepath)
+        elif type == 'simulated_Didymos':
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath)
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=False)
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=False, smoothing=False)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
-        self.w = test_data.shape[1]
         self.h = test_data.shape[0]
+        self.w = test_data.shape[1]
         self.l = test_data.shape[2]
 
         # Dimensions of the image must be [batches, bands, width, height] for convolution
@@ -463,6 +469,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             shape = np.shape(final_pred)
             spectral_angles = np.zeros((shape[1], shape[2]))
+            R2_distances = np.zeros((shape[1], shape[2]))
             best_SAM = 5
             best_indices = (0, 0)
             worst_SAM = 1e-5  # np.zeros((shape[0], 1))
@@ -476,6 +483,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     spectral_angle = SAM(orig, pred)
                     spectral_angles[i, j] = spectral_angle
 
+                    R2_dist = R2_distance(orig, pred)
+                    R2_distances[i, j] = R2_dist
+
                     if spectral_angle < best_SAM:
                         best_SAM = spectral_angle
                         best_indices = (i, j)
@@ -484,6 +494,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                         worst_indices = (i, j)
 
             plotter.plot_SAM(spectral_angles, epoch)
+            plotter.plot_R2(R2_distances, epoch)
 
             fig, axs = plt.subplots(nrows=2, ncols=2, layout='constrained')
             worst_ax = plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]],
