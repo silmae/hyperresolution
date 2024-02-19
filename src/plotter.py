@@ -102,11 +102,35 @@ def plot_SAM(map, epoch):
 
     fig = plt.figure()
     fig.suptitle('SAM')
-    plt.imshow(map, vmin=0, vmax=3.1415 / 2)
+    plt.imshow(map, vmin=0, vmax=3.1415 / 4)
     plt.colorbar()
 
     folder = './figures/'
     image_name = f"SAM_e{epoch}.{image_type}"
+    path = Path(folder, image_name)
+    logging.info(f"Saving the image to '{path}'.")
+    plt.savefig(path, dpi=300)
+
+    plt.close(fig)
+
+
+def plot_R2(map, epoch):
+    """
+    Plots a map of R2 distance and saves the figure on disc.
+
+    :param map:
+    Map to be plotted, a 2D array where each element is the R2 distance between two spectra
+    :param epoch:
+    Training epoch where the map was calculated, will be included in filename of saved figure
+    """
+
+    fig = plt.figure()
+    fig.suptitle('Euclidean distance')
+    plt.imshow(map, vmin=0, vmax=0.5)
+    plt.colorbar()
+
+    folder = './figures/'
+    image_name = f"R2_e{epoch}.{image_type}"
     path = Path(folder, image_name)
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
