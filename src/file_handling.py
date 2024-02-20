@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import logging
 
@@ -153,17 +154,68 @@ def file_loader_Dawn_ISIS(filepath):
     return h, w, l, cube, wavelengths, FWHMs
 
 
-def file_loader_simulated_Didymos(filepath):
-    datadict = scipy.io.loadmat(filepath)
-    cube = datadict['cube'] * 1000
-    wavelengths = datadict['wavelengths'] / 1000
-    h = np.shape(cube)[0]
-    w = np.shape(cube)[1]
-    l = np.shape(cube)[2]
+def file_loader_simulated_Didymos(folderpath):
+    # Load both NIR and VIS parts of image into memory
+    filelist = os.listdir(folderpath)
+    for filename in filelist:
+        if ('-vis-' in filename) and ('.mat' in filename):
+            filepath_vis = Path(folderpath, filename)
+        elif '.mat' in filename:
+            filepath_nir = Path(folderpath, filename)
 
-    FWHMs = np.zeros(shape=wavelengths.shape) + 0.040
+    def load_file(filepath):
+        data_dict = scipy.io.loadmat(filepath)
+        datacube = data_dict['cube']
+        wavelengths = np.squeeze(data_dict['wavelengths'] / 1000)
+        return datacube, wavelengths
 
-    return h, w, l, cube, wavelengths, FWHMs
+    vis_cube, vis_wavelengths = load_file(filepath_vis)
+    nir_cube, nir_wavelengths = load_file(filepath_nir)
+
+    print(f'Last VIS wl: {vis_wavelengths[-1]} µm, first NIR wl: {nir_wavelengths[0]} µm')
+
+    # Crop VIS part to have the same FOV, then interpolate to get same pixel count as NIR
+    # Number of VIS pixels in the height direction, from comparing the FOV:s
+    vis_h_pixels = vis_cube.shape[0] * (constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0])
+    vis_h_start_index = int((vis_cube.shape[0] / 2) - (vis_h_pixels / 2))
+    vis_h_stop_index = int((vis_cube.shape[0] / 2) + (vis_h_pixels / 2))
+    vis_cube = vis_cube[vis_h_start_index:vis_h_stop_index, :, :]
+    # Crop to NIR aspect ratio, keeping the height dimension the same
+    vis_cube = utils.crop2aspect_ratio(vis_cube, aspect_ratio=constants.ASPECT_NIR_FOV[1] / constants.ASPECT_NIR_FOV[0], keep_dim=0)
+    # Interpolate the VIS part to get same number of pixels as NIR
+    vis_cube = utils.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
+
+    # Dark correction
+    vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1))
+    nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1))
+
+    print('kalja')
+
+    fig, ax = plt.subplots(nrows=1, ncols=2)
+    ax[0].imshow(vis_cube[:, :, 5])
+    ax[1].imshow(nir_cube[:, :, 5])
+    # plt.show()
+    # TODO Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR, then concatenate
+    middle_indices = (int(nir_cube.shape[0] / 2), int(nir_cube.shape[1] / 2))
+    # FIXME Don't subtract, must scale the values with multiplication instead
+    adjustment_value = nir_cube[middle_indices[0], middle_indices[1], 0] - vis_cube[middle_indices[0], middle_indices[1], -1]
+    nir_cube = nir_cube - adjustment_value
+    plt.figure()
+    plt.plot(nir_wavelengths, nir_cube[middle_indices[0], middle_indices[1], :])
+    plt.plot(vis_wavelengths, vis_cube[middle_indices[0], middle_indices[1], :])
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('DN')
+    plt.show()
+    # TODO convert the int readings into radiance values using reflectance and hc-distance of Didymos
+    # TODO extend into SWIR using the reflectance spectrum?
+
+    # h = np.shape(cube)[0]
+    # w = np.shape(cube)[1]
+    # l = np.shape(cube)[2]
+    #
+    # FWHMs = np.zeros(shape=wavelengths.shape) + 0.040
+    #
+    # return h, w, l, cube, wavelengths, FWHMs
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):

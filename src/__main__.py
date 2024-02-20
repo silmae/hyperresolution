@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
 
     # # Simulated images of the Didymos system, by Penttilä et al.
-    training_data = nn.TrainingData(type='simulated_Didymos', filepath=Path('./datasets/Didymos_simulated/D1D2v5-10km-noiseless-40ms.mat'))
+    training_data = nn.TrainingData(type='simulated_Didymos', filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5_noiseless_10km'))
 
     bands = training_data.l
 

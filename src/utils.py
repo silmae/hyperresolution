@@ -69,6 +69,13 @@ def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center
     return masked_data
 
 
+def resize_image_cube(cube, height, width):
+    resized = np.zeros((height, width, cube.shape[2]))
+    for channel in range(cube.shape[2]):
+        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_CUBIC)
+    return resized
+
+
 def crop2aspect_ratio(cube, aspect_ratio=1, keep_dim=None):
     """
     Crop a spectral image cube (numpy ndarray) according to aspect ratio given as parameter.
@@ -375,11 +382,8 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     # Interpolate each channel to have more pixels: width from NIR width, height from what the height would be
     height = constants.ASPECT_SWIR_equivalent_radius * 2  # height should be diameter of FOV, so 2 * radius
     width = constants.ASPECT_NIR_channel_shape[1]
-    resized = np.zeros((height, width, cube.shape[2]))
-    for channel in range(cube.shape[2]):
-        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_CUBIC)
-    cube = resized
 
+    cube = resize_image_cube(cube, height, width)
     cube = apply_circular_mask(cube, height, width, masking_value=float('nan'))
 
     test_cube = crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[0] /
