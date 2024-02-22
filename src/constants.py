@@ -93,5 +93,7 @@ ASPECT_SWIR_equivalent_radius = int(ASPECT_NIR_channel_shape[0] * (ASPECT_SWIR_F
 # Heliocentric distances for Ceres and Vesta to calculate the I/F with proper level of insolation
 ceres_hc_dist = (2.55 + 2.99) / 2  # average between perihelion and aphelion
 vesta_hc_dist = (2.15 + 2.57) / 2
+didymos_hc_dist = (1.01 + 2.27) / 2
 
 solar_path = Path('./datasets/E490_solar_spectrum_0.2_to_6micron.csv')
+didymos_path = Path('./datasets/Didymos_simulated/didymos-spectra.txt')
