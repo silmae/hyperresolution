@@ -195,18 +195,31 @@ def file_loader_simulated_Didymos(folderpath):
     ax[0].imshow(vis_cube[:, :, 5])
     ax[1].imshow(nir_cube[:, :, 5])
     # plt.show()
-    # TODO Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR, then concatenate
+    # Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR
     middle_indices = (int(nir_cube.shape[0] / 2), int(nir_cube.shape[1] / 2))
-    # FIXME Don't subtract, must scale the values with multiplication instead
-    adjustment_value = nir_cube[middle_indices[0], middle_indices[1], 0] - vis_cube[middle_indices[0], middle_indices[1], -1]
-    nir_cube = nir_cube - adjustment_value
+    # nir_cube = nir_cube * (vis_cube[middle_indices[0], middle_indices[1], -1] / nir_cube[middle_indices[0], middle_indices[1], 0])
+
     plt.figure()
-    plt.plot(nir_wavelengths, nir_cube[middle_indices[0], middle_indices[1], :])
-    plt.plot(vis_wavelengths, vis_cube[middle_indices[0], middle_indices[1], :])
+    plt.plot(nir_wavelengths, nir_cube[200, 300, :])
+    plt.plot(vis_wavelengths, vis_cube[200, 300, :])
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('DN')
     plt.show()
+
+    # Load Didymos spectrum used in the simulation
+    spectrum_path = constants.didymos_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
+    didymos_data = np.loadtxt(spectrum_path)
+    didymos_reflectance = didymos_data[:, 1]
+    didymos_wavelengths = didymos_data[:, 0]
+
+    didymos_reflectance, didymos_wavelengths, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths / 1000, FWHMs=None)
+
+    plt.figure()
+    plt.plot(didymos_wavelengths, didymos_reflectance)
+    plt.show()
+    # TODO Denoise the Didymos reflectance spectrum
     # TODO convert the int readings into radiance values using reflectance and hc-distance of Didymos
+    # TODO Concatenate the two cubes
     # TODO extend into SWIR using the reflectance spectrum?
 
     # h = np.shape(cube)[0]
