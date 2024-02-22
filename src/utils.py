@@ -193,7 +193,7 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
     Resampling a spectral image cube to match the wavelength channels of ASPECT NIR and SWIR. ASPECT channel center
     wavelengths and FWHMs are defined in constants.
     :param cube:
-        Spectral image cube
+        Spectral image cube, or point spectrum
     :param wavelengths:
         Wavelength vector of the spectral image cube
     :param FWHMs:
@@ -207,10 +207,13 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
 
     resample = spectral.BandResampler(wavelengths, ASPECT_wavelengths, FWHMs, ASPECT_FWHMs)
 
-    cube_resampled = np.zeros(shape=(cube.shape[0], cube.shape[1], len(ASPECT_wavelengths)))
-    for i in range(cube.shape[0]):
-        for j in range(cube.shape[1]):
-            cube_resampled[i, j, :] = resample(cube[i, j, :])
+    if len(cube.shape) == 3: # spectral image cube has two spatial dimensions and one spectral
+        cube_resampled = np.zeros(shape=(cube.shape[0], cube.shape[1], len(ASPECT_wavelengths)))
+        for i in range(cube.shape[0]):
+            for j in range(cube.shape[1]):
+                cube_resampled[i, j, :] = resample(cube[i, j, :])
+    elif len(cube.shape) == 1:
+        cube_resampled = resample(cube)
 
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
