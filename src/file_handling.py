@@ -189,36 +189,58 @@ def file_loader_simulated_Didymos(folderpath):
     vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1))
     nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1))
 
-    print('kalja')
-
-    fig, ax = plt.subplots(nrows=1, ncols=2)
-    ax[0].imshow(vis_cube[:, :, 5])
-    ax[1].imshow(nir_cube[:, :, 5])
+    # fig, ax = plt.subplots(nrows=1, ncols=2)
+    # ax[0].imshow(vis_cube[:, :, 5])
+    # ax[1].imshow(nir_cube[:, :, 5])
     # plt.show()
-    # Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR
-    middle_indices = (int(nir_cube.shape[0] / 2), int(nir_cube.shape[1] / 2))
-    # nir_cube = nir_cube * (vis_cube[middle_indices[0], middle_indices[1], -1] / nir_cube[middle_indices[0], middle_indices[1], 0])
 
-    plt.figure()
-    plt.plot(nir_wavelengths, nir_cube[200, 300, :])
-    plt.plot(vis_wavelengths, vis_cube[200, 300, :])
-    plt.xlabel('Wavelength [µm]')
-    plt.ylabel('DN')
-    plt.show()
+    # plt.figure()
+    # plt.plot(nir_wavelengths, nir_cube[200, 300, :])
+    # plt.plot(vis_wavelengths, vis_cube[200, 300, :])
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('DN')
+    # plt.show()
 
-    # Load Didymos spectrum used in the simulation
+     # Load Didymos spectrum used in the simulation
     spectrum_path = constants.didymos_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
     didymos_data = np.loadtxt(spectrum_path)
     didymos_reflectance = didymos_data[:, 1]
-    didymos_wavelengths = didymos_data[:, 0]
+    didymos_wavelengths = didymos_data[:, 0] / 1000
 
-    didymos_reflectance, didymos_wavelengths, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths / 1000, FWHMs=None)
+    # Denoise the Didymos reflectance spectrum
+    # original_reflectance = np.copy(didymos_reflectance)
+    # didymos_reflectance = utils.interpolate_outliers(didymos_reflectance, z_thresh=1.2)
+    # didymos_reflectance = utils.denoise_array(didymos_reflectance, x=didymos_wavelengths, sigma=0.045)
+
+    # # Plot of denoised and original spectrum
+    # plt.figure()
+    # plt.plot(didymos_wavelengths, original_reflectance)
+    # plt.plot(didymos_wavelengths, didymos_reflectance)
+    # plt.show()
+
+    # Calculate expected reflected radiance from the reflectance and insolation at Didymos' heliocentric distance
+    didymos_radiance = didymos_reflectance * utils.solar_irradiance(distance=constants.didymos_hc_dist,
+                                                                    wavelengths=didymos_wavelengths,
+                                                                    resample=True)[:, 1]
+
+    theor_vis_radiance = utils.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=vis_wavelengths)
+    theor_nir_radiance = utils.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=nir_wavelengths)
+
+    # Convert the DN readings into radiance values using reflectance and hc-distance of Didymos
+    # Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR
+    middle_indices = (int(nir_cube.shape[0] / 2), int(nir_cube.shape[1] / 2))
+    # middle_indices = (200, 300)
+    vis_radiance = (theor_vis_radiance[-1] / vis_cube[middle_indices[0], middle_indices[1], -1]) * vis_cube
+    nir_radiance = (theor_nir_radiance[0] / nir_cube[middle_indices[0], middle_indices[1], 0]) * nir_cube
 
     plt.figure()
-    plt.plot(didymos_wavelengths, didymos_reflectance)
+    # plt.plot(didymos_wavelengths, didymos_radiance)
+    plt.plot(vis_wavelengths, theor_vis_radiance)
+    plt.plot(nir_wavelengths, theor_nir_radiance)
+    plt.plot(vis_wavelengths, vis_radiance[middle_indices[0], middle_indices[1], :])
+    plt.plot(nir_wavelengths, nir_radiance[middle_indices[0], middle_indices[1], :])
     plt.show()
-    # TODO Denoise the Didymos reflectance spectrum
-    # TODO convert the int readings into radiance values using reflectance and hc-distance of Didymos
+
     # TODO Concatenate the two cubes
     # TODO extend into SWIR using the reflectance spectrum?
 
