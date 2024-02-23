@@ -218,6 +218,13 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
+def resample_spectrum(spectrum, old_wls, new_wls):
+    resample = spectral.BandResampler(old_wls, new_wls)
+    spectrum = resample(spectrum)
+    return spectrum
+
+
+
 def rot_and_crop_Dawn_VIR_ISIS(data, rot_deg, crop_indices_x, crop_indices_y, edge_detection=False):
     """
     Rotate and crop a DAWN VIR IR or VIS ISIS image cube, and detect edges with opencv Canny if so specified.
