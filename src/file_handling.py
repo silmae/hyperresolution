@@ -186,8 +186,9 @@ def file_loader_simulated_Didymos(folderpath):
     vis_cube = utils.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
 
     # Dark correction
-    vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1))
-    nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1))
+    eps = 10e-5
+    vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1)) + eps
+    nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1)) + eps
 
     # fig, ax = plt.subplots(nrows=1, ncols=2)
     # ax[0].imshow(vis_cube[:, :, 5])
@@ -208,9 +209,9 @@ def file_loader_simulated_Didymos(folderpath):
     didymos_wavelengths = didymos_data[:, 0] / 1000
 
     # Denoise the Didymos reflectance spectrum
-    # original_reflectance = np.copy(didymos_reflectance)
-    # didymos_reflectance = utils.interpolate_outliers(didymos_reflectance, z_thresh=1.2)
-    # didymos_reflectance = utils.denoise_array(didymos_reflectance, x=didymos_wavelengths, sigma=0.045)
+    original_reflectance = np.copy(didymos_reflectance)
+    didymos_reflectance = utils.interpolate_outliers(didymos_reflectance, z_thresh=1.2)
+    didymos_reflectance = utils.denoise_array(didymos_reflectance, x=didymos_wavelengths, sigma=0.045)
 
     # # Plot of denoised and original spectrum
     # plt.figure()
@@ -235,22 +236,47 @@ def file_loader_simulated_Didymos(folderpath):
 
     plt.figure()
     # plt.plot(didymos_wavelengths, didymos_radiance)
-    plt.plot(vis_wavelengths, theor_vis_radiance)
-    plt.plot(nir_wavelengths, theor_nir_radiance)
-    plt.plot(vis_wavelengths, vis_radiance[middle_indices[0], middle_indices[1], :])
-    plt.plot(nir_wavelengths, nir_radiance[middle_indices[0], middle_indices[1], :])
-    plt.show()
+    plt.plot(vis_wavelengths, theor_vis_radiance, label='Theoretical VIS')
+    plt.plot(nir_wavelengths, theor_nir_radiance, label='Theoretical NIR')
+    plt.plot(vis_wavelengths, vis_radiance[middle_indices[0], middle_indices[1], :], label='Simulated VIS')
+    plt.plot(nir_wavelengths, nir_radiance[middle_indices[0], middle_indices[1], :], label='Simulated NIR')
+    plt.legend()
+    # plt.show()
 
-    # TODO Concatenate the two cubes
+    # TODO Interpolate more frames? Especially in the gap between VIS and NIR
+
+    # Concatenate the two cubes
+    cube = np.concatenate((vis_radiance, nir_radiance), axis=2)
+    wavelengths = np.concatenate((vis_wavelengths, nir_wavelengths))
+
     # TODO extend into SWIR using the reflectance spectrum?
 
-    # h = np.shape(cube)[0]
-    # w = np.shape(cube)[1]
-    # l = np.shape(cube)[2]
-    #
+    ##################################################################################################################
+    # Alternatively: just take one frame from the cube for brightness variation, and create the spectral features from the theoretical spectrum
+    wavelengths = constants.ASPECT_wavelengths
+    reflected_radiance, _, FWHMs = utils.ASPECT_resampling(didymos_radiance, didymos_wavelengths, FWHMs=None)
+    frame = vis_cube[:, :, 0] / np.max(vis_cube[:, :, 0])
+    cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
+    cube = cube * reflected_radiance
+    cube = cube * np.expand_dims(frame, axis=2)
+
+    h = np.shape(cube)[0]
+    w = np.shape(cube)[1]
+    l = np.shape(cube)[2]
+
+    # fig, axs = plt.subplots(1, 2)
+    # # axs[0].imshow(cube[:, :, 10])
+    # axs[0].imshow(frame)
+    # axs[1].plot(wavelengths, cube[200, 300, :])
+    # axs[1].plot(wavelengths, cube[200, 350, :])
+    # axs[1].plot(wavelengths, cube[250, 350, :])
+    # axs[1].plot(wavelengths, cube[300, 300, :])
+    # axs[1].plot(wavelengths, cube[300, 350, :])
+    # plt.show()
+
     # FWHMs = np.zeros(shape=wavelengths.shape) + 0.040
-    #
-    # return h, w, l, cube, wavelengths, FWHMs
+
+    return h, w, l, cube, wavelengths, FWHMs
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
