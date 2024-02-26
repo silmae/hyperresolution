@@ -170,6 +170,10 @@ class TrainingData(Dataset):
             self.FWHMs = FWHMs
         elif type == 'DAWN_ISIS':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_ISIS(filepath)
+            # Crop the VIR cube to contain a bit more than the useful wavelengths: no useless processing, and less edge artifacts
+            cube = cube[:, :, constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
+            wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
+            FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath)
         else:
@@ -177,7 +181,7 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_Dawn_VIR(cube, wavelengths, FWHMs, vignetting=False, smoothing=False)
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=False, smoothing=False)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
@@ -458,14 +462,18 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                 false_col_org = false_col_org + cube_original[
                                                 (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
                                                 :, :]  # TODO replace hardcoded indices
+
                 false_col_rec = false_col_rec + final_pred[
                                                 (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
-                                                :,
-                                                :]
-
+                                                :, :]
             # juggle dimensions for plotting
             false_col_org = np.transpose(false_col_org, (2, 1, 0))
             false_col_rec = np.transpose(false_col_rec, (2, 1, 0))
+            # Convert nans to zeros and normalize with maximum value in the image
+            false_col_org = np.nan_to_num(false_col_org, nan=0)
+            false_col_rec = np.nan_to_num(false_col_rec, nan=0)
+            false_col_org = (false_col_org / np.max(false_col_org))
+            false_col_rec = (false_col_rec / np.max(false_col_rec))
 
             shape = np.shape(final_pred)
             spectral_angles = np.zeros((shape[1], shape[2]))
