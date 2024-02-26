@@ -199,7 +199,7 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
     :param FWHMs:
         Full-width-half-maximum values for all the wavelength channels of the cube
     :return:
-        Resampled image cube
+        Resampled image cube, ASPECT wavelengths, ASPECT FWHMs
     """
 
     ASPECT_wavelengths = constants.ASPECT_wavelengths
@@ -218,11 +218,13 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
-def resample_spectrum(spectrum, old_wls, new_wls):
-    resample = spectral.BandResampler(old_wls, new_wls)
+def resample_spectrum(spectrum, old_wls, new_wls, old_FWHMs=None, new_FWHMs=None):
+    if old_FWHMs is None and new_FWHMs is None:
+        resample = spectral.BandResampler(old_wls, new_wls)
+    else:
+        resample = spectral.BandResampler(old_wls, new_wls, old_FWHMs, new_FWHMs)
     spectrum = resample(spectrum)
     return spectrum
-
 
 
 def rot_and_crop_Dawn_VIR_ISIS(data, rot_deg, crop_indices_x, crop_indices_y, edge_detection=False):
@@ -309,8 +311,8 @@ def solar_irradiance(distance: float, wavelengths=constants.ASPECT_wavelengths, 
     return final
 
 
-def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True):
-    """Take a spectral image from Dawn VIR and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
+def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True):
+    """Take a spectral image and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
     the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
     specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
     wavelength image into an image matching ASPECT NIR FOV and interpolates to match the pixel count of NIR.
@@ -329,10 +331,6 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
         Short wavelength spectral image cube, long wavelength point spectrum, complete spectral image cube with
         wavelength channels covering the whole ASPECT wavelength range
     """
-    # Crop the VIR cube to contain a bit more than the useful wavelengths: no useless processing, and less edge artifacts
-    cube = cube[:, :, constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
-    wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
-    FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
 
     if smoothing:
         # Outlier removal and denoising: asteroid spectra should be very smooth with features tens or even hundreds nm wide
@@ -360,11 +358,12 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
         cube = smoothed_cube
 
     # Resample spectra to resemble ASPECT data
+    # if not wavelengths == constants.ASPECT_wavelengths:
     cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
 
     # Convert radiances to I/F
     if convert_rad2refl:
-        insolation = solar_irradiance(distance=constants.vesta_hc_dist, wavelengths=constants.ASPECT_wavelengths,
+        insolation = solar_irradiance(distance=constants.didymos_hc_dist, wavelengths=constants.ASPECT_wavelengths,
                                             plot=False, resample=True)
         cube = cube / insolation[:, 1]
 
@@ -385,6 +384,36 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
         # plt.show()
         cube = smoothed_cube
 
+    VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube)
+
+    # Sanity check plots
+    # plt.figure()
+    # plt.imshow(cube_short[:, :, 20])
+    # plt.figure()
+    # plt.imshow(cube_long[:, :, 20])
+    # plt.figure()
+    # plt.plot(test_cube[300, 300, :])
+    # plt.plot(test_cube[200, 200, :])
+    # plt.plot(test_cube[400, 400, :])
+    # plt.show()
+
+    return VIS_and_NIR_data, SWIR_data, test_data
+
+
+def cube2ASPECT_data(cube: np.ndarray, vignetting=True):
+    """
+    Manipulate a spectral image cube to match the spatial dimensions of ASPECT data. Returns the VIS and NIR as one
+    cube that has the spatial dimensions of the NIR data. Returns also the SWIR point spectrum, and a cube that extends
+    the whole wavelength range and has the NIR spatial dimensions.
+    :param cube:
+        Spectral image cube as ndarray
+    :param vignetting:
+        Whether to apply vignetting to the SWIR part
+    :return VIS_and_NIR_data, SWIR_data, test_data:
+        Image cube with combined wavelengths range of the VIS and NIR modules and spatial dimensions of NIR, SWIR point
+        spectrum, and full length image cube with spatial dimensions of NIR
+    """
+
     # Crop the image to aspect ratio where one side is the larger of NIR FOV and one side is SWIR FOV
     aspect_ratio = max(constants.ASPECT_NIR_FOV) / constants.ASPECT_SWIR_FOV
     cube = crop2aspect_ratio(cube, aspect_ratio)
@@ -397,7 +426,7 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     cube = apply_circular_mask(cube, height, width, masking_value=float('nan'))
 
     test_cube = crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[0] /
-                                                            constants.ASPECT_NIR_channel_shape[1], keep_dim=1)
+                                                     constants.ASPECT_NIR_channel_shape[1], keep_dim=1)
 
     cube_short = test_cube[:, :, :constants.ASPECT_SWIR_start_channel_index]
     cube_long = cube[:, :, constants.ASPECT_SWIR_start_channel_index:]
@@ -405,22 +434,10 @@ def ASPECT_NIR_SWIR_from_Dawn_VIR(cube: np.ndarray, wavelengths, FWHMs, convert_
     # Apply vignetting on the SWIR part, the shorter channels are considered ideally flat-fielded
     if vignetting:
         cube_long = apply_vignetting(cube_long)
-        #
 
     SWIR_data = np.nanmean(cube_long, axis=(0, 1))
     VIS_and_NIR_data = cube_short
     test_data = test_cube
-
-    # Sanity check plots
-    # plt.figure()
-    # plt.imshow(cube_short[:, :, 20])
-    # plt.figure()
-    # plt.imshow(cube_long[:, :, 20])
-    # plt.figure()
-    # plt.plot(test_cube[300, 300, :])
-    # plt.plot(test_cube[200, 200, :])
-    # plt.plot(test_cube[400, 400, :])
-    # plt.show()
 
     return VIS_and_NIR_data, SWIR_data, test_data
 
