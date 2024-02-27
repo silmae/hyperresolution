@@ -243,6 +243,8 @@ def init_network(enc_params, dec_params, common_params, endmembers=None):
             dec.layers[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
     plt.figure()
     plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
+    plt.plot(dec.layers[-1].weight.data[:, 1, 0, 0].detach().cpu().numpy())
+    plt.plot(dec.layers[-1].weight.data[:, 2, 0, 0].detach().cpu().numpy())
     plt.show()
     print('kalja')
 
@@ -287,7 +289,7 @@ def tensor_image_corrcoeff(y_true, y_pred):
     return spatial_correlation
 
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, endmembers=None):
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, initial_endmembers=None):
     bands = training_data.l
     SWIR_cutoff_index = constants.ASPECT_SWIR_start_channel_index
 
@@ -306,7 +308,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     print(f"Using {device} device")
 
     # Build and initialize the encoder and decoder
-    enc, dec = init_network(enc_params, dec_params, common_params, endmembers)
+    enc, dec = init_network(enc_params, dec_params, common_params, endmembers=np.copy(initial_endmembers))
 
     # Move network to GPU memory
     enc = enc.to(device)
@@ -407,6 +409,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             loss = loss_fn(y, final_pred)
             loss.backward()
             optimizer.step()
+
+            # Implement freezing the endmembers by just plugging the original back in after backprop
+            if initial_endmembers is not None:
+                for i, endmember in enumerate(initial_endmembers):
+                    kalja = torch.tensor(np.expand_dims(endmember, axis=(1, 2)))
+                    foo = dec.layers[-1].weight.data[:, i, :, :]
+                    dec.layers[-1].weight.data[:, i, :, :] = kalja
 
             loss_item = loss.item()
             test_score = test_fn(test_cube, final_pred)
