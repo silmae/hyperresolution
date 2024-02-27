@@ -188,7 +188,7 @@ def join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_
     return cube, wavelengths, fwhms
 
 
-def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs):
+def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs=None):
     """
     Resampling a spectral image cube to match the wavelength channels of ASPECT NIR and SWIR. ASPECT channel center
     wavelengths and FWHMs are defined in constants.
