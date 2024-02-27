@@ -17,6 +17,7 @@ from src import nn
 from src import utils
 from src import plotter
 from src import constants
+from src import file_handling
 
 if __name__ == '__main__':
     # Set manual seed for comparable results between training runs
@@ -106,10 +107,22 @@ if __name__ == '__main__':
 
     dec_params = {'band_count': common_params['bands'],
                   'endmember_count': common_params['endmember_count'],
-                  'd_kernel_size': 5}
+                  'd_kernel_size': 1}
+
+    # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
+    didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
+    didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    endmembers = [didymos_reflectance]
 
     # Build and train a neural network
-    nn.train(training_data, enc_params=enc_params, dec_params=dec_params, common_params=common_params, epochs=10000, prints=True, plots=True)
+    nn.train(training_data,
+             enc_params=enc_params,
+             dec_params=dec_params,
+             common_params=common_params,
+             endmembers=endmembers,
+             epochs=10000,
+             prints=True,
+             plots=True)
 
     # ############### Hyperparameter optimization ##################
     # epochs = 6000

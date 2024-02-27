@@ -217,7 +217,7 @@ class TrainingData(Dataset):
         return self.X, self.Y
 
 
-def init_network(enc_params, dec_params, common_params):
+def init_network(enc_params, dec_params, common_params, endmembers=None):
     enc = Encoder(enc_layer_count=2,
                   band_count=enc_params['band_count'],
                   endmember_count=common_params['endmember_count'],
@@ -236,6 +236,15 @@ def init_network(enc_params, dec_params, common_params):
 
     enc.apply(init_weights)
     dec.apply(init_weights)
+
+    # If endmember spectra are given as parameters, set them as decoder kernel weights
+    if endmembers is not None:
+        for i, endmember in enumerate(endmembers):
+            dec.layers[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
+    plt.figure()
+    plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
+    plt.show()
+    print('kalja')
 
     # # Print network structure into log
     # logging.info(enc)
@@ -278,7 +287,7 @@ def tensor_image_corrcoeff(y_true, y_pred):
     return spatial_correlation
 
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True):
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, endmembers=None):
     bands = training_data.l
     SWIR_cutoff_index = constants.ASPECT_SWIR_start_channel_index
 
@@ -297,7 +306,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     print(f"Using {device} device")
 
     # Build and initialize the encoder and decoder
-    enc, dec = init_network(enc_params, dec_params, common_params)
+    enc, dec = init_network(enc_params, dec_params, common_params, endmembers)
 
     # Move network to GPU memory
     enc = enc.to(device)
