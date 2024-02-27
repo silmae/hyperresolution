@@ -154,6 +154,28 @@ def file_loader_Dawn_ISIS(filepath):
     return h, w, l, cube, wavelengths, FWHMs
 
 
+def load_Didymos_reflectance_spectrum(denoise=True):
+    # Load Didymos spectrum used in the simulation
+    spectrum_path = constants.didymos_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
+    didymos_data = np.loadtxt(spectrum_path)
+    didymos_reflectance = didymos_data[:, 1]
+    didymos_wavelengths = didymos_data[:, 0] / 1000  # Convert nm to µm
+
+    if denoise:
+        # Denoise the Didymos reflectance spectrum
+        original_reflectance = np.copy(didymos_reflectance)
+        didymos_reflectance = utils.interpolate_outliers(didymos_reflectance, z_thresh=1.2)
+        didymos_reflectance = utils.denoise_array(didymos_reflectance, x=didymos_wavelengths, sigma=0.045)
+
+        # # Plot of denoised and original spectrum
+        # plt.figure()
+        # plt.plot(didymos_wavelengths, original_reflectance)
+        # plt.plot(didymos_wavelengths, didymos_reflectance)
+        # plt.show()
+
+    return didymos_wavelengths, didymos_reflectance
+
+
 def file_loader_simulated_Didymos(folderpath):
     # Load both NIR and VIS parts of image into memory
     filelist = os.listdir(folderpath)
@@ -202,22 +224,7 @@ def file_loader_simulated_Didymos(folderpath):
     # plt.ylabel('DN')
     # plt.show()
 
-     # Load Didymos spectrum used in the simulation
-    spectrum_path = constants.didymos_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
-    didymos_data = np.loadtxt(spectrum_path)
-    didymos_reflectance = didymos_data[:, 1]
-    didymos_wavelengths = didymos_data[:, 0] / 1000
-
-    # Denoise the Didymos reflectance spectrum
-    original_reflectance = np.copy(didymos_reflectance)
-    didymos_reflectance = utils.interpolate_outliers(didymos_reflectance, z_thresh=1.2)
-    didymos_reflectance = utils.denoise_array(didymos_reflectance, x=didymos_wavelengths, sigma=0.045)
-
-    # # Plot of denoised and original spectrum
-    # plt.figure()
-    # plt.plot(didymos_wavelengths, original_reflectance)
-    # plt.plot(didymos_wavelengths, didymos_reflectance)
-    # plt.show()
+    didymos_wavelengths, didymos_reflectance = load_Didymos_reflectance_spectrum(denoise=True)
 
     # Calculate expected reflected radiance from the reflectance and insolation at Didymos' heliocentric distance
     didymos_radiance = didymos_reflectance * utils.solar_irradiance(distance=constants.didymos_hc_dist,
