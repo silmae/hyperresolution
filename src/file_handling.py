@@ -207,10 +207,10 @@ def file_loader_simulated_Didymos(folderpath):
     # Interpolate the VIS part to get same number of pixels as NIR
     vis_cube = utils.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
 
-    # Dark correction
-    eps = 10e-5
-    vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1)) + eps
-    nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1)) + eps
+    # # Dark correction
+    # eps = 1  # A fairly large epsilon because these are DN readings (ints)
+    # vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1)) + eps
+    # nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1)) + eps
 
     # fig, ax = plt.subplots(nrows=1, ncols=2)
     # ax[0].imshow(vis_cube[:, :, 5])
@@ -262,9 +262,10 @@ def file_loader_simulated_Didymos(folderpath):
     # Alternatively: just take one frame from the cube for brightness variation, and create the spectral features from the theoretical spectrum
     wavelengths = constants.ASPECT_wavelengths
     reflected_radiance, _, FWHMs = utils.ASPECT_resampling(didymos_radiance, didymos_wavelengths, FWHMs=None)
+    didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
     frame = vis_cube[:, :, 0] / np.max(vis_cube[:, :, 0])
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
-    cube = cube * reflected_radiance
+    cube = cube * didymos_reflectance #reflected_radiance
     cube = cube * np.expand_dims(frame, axis=2)
 
     h = np.shape(cube)[0]

@@ -384,7 +384,7 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         # plt.show()
         cube = smoothed_cube
 
-    VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube)
+    VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube, vignetting)
 
     # Sanity check plots
     # plt.figure()
