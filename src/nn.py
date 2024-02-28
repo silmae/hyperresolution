@@ -181,7 +181,7 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=False, smoothing=False)
+        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
@@ -241,12 +241,11 @@ def init_network(enc_params, dec_params, common_params, endmembers=None):
     if endmembers is not None:
         for i, endmember in enumerate(endmembers):
             dec.layers[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
-    plt.figure()
-    plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
-    plt.plot(dec.layers[-1].weight.data[:, 1, 0, 0].detach().cpu().numpy())
-    plt.plot(dec.layers[-1].weight.data[:, 2, 0, 0].detach().cpu().numpy())
-    plt.show()
-    print('kalja')
+    # plt.figure()
+    # plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
+    # plt.plot(dec.layers[-1].weight.data[:, 1, 0, 0].detach().cpu().numpy())
+    # plt.plot(dec.layers[-1].weight.data[:, 2, 0, 0].detach().cpu().numpy())
+    # plt.show()
 
     # # Print network structure into log
     # logging.info(enc)
@@ -496,9 +495,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             shape = np.shape(final_pred)
             spectral_angles = np.zeros((shape[1], shape[2]))
             R2_distances = np.zeros((shape[1], shape[2]))
-            best_SAM = 5
+            best_score = 5
             best_indices = (0, 0)
-            worst_SAM = 1e-5  # np.zeros((shape[0], 1))
+            worst_score = 1e-5  # np.zeros((shape[0], 1))
             worst_indices = (0, 0)
 
             for i in range(shape[1]):
@@ -512,11 +511,11 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     R2_dist = R2_distance(orig, pred)
                     R2_distances[i, j] = R2_dist
 
-                    if spectral_angle < best_SAM:
-                        best_SAM = spectral_angle
+                    if (spectral_angle + R2_dist) < best_score:
+                        best_score = spectral_angle + R2_dist
                         best_indices = (i, j)
-                    if spectral_angle > worst_SAM and np.mean(orig) != 1:
-                        worst_SAM = spectral_angle
+                    if (spectral_angle + R2_dist) > worst_score and np.mean(orig) != 1 and np.mean(orig) > 0.01:
+                        worst_score = spectral_angle + R2_dist
                         worst_indices = (i, j)
 
             plotter.plot_SAM(spectral_angles, epoch)
