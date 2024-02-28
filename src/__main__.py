@@ -69,7 +69,8 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
 
     # # Simulated images of the Didymos system, by Penttilä et al.
-    training_data = nn.TrainingData(type='simulated_Didymos', filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5_noiseless_10km'))
+    training_data = nn.TrainingData(type='simulated_Didymos',
+                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5_noiseless_10km'))
 
     bands = training_data.l
 
@@ -98,10 +99,10 @@ if __name__ == '__main__':
                      'endmember_count': endmember_count,
                      'learning_rate': 0.000450}
 
-    enc_params = {'enc_layer_count': 4,
+    enc_params = {'enc_layer_count': 5,
                   'band_count': constants.ASPECT_SWIR_start_channel_index,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 161,
+                  'e_filter_count': 256,
                   'e_kernel_size': 6,
                   'kernel_reduction': 0}
 
@@ -112,7 +113,12 @@ if __name__ == '__main__':
     # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
     didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
     didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
-    endmembers = [didymos_reflectance]
+
+    # Flat spectra to adjust lightness and darkness of pixels
+    dark_em = np.ones(shape=didymos_reflectance.shape) * 0.01
+    # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
+
+    endmembers = [didymos_reflectance, dark_em] #, light_em]
 
     # Build and train a neural network
     nn.train(training_data,
