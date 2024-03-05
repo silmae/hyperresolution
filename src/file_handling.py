@@ -13,6 +13,17 @@ from src import constants
 from src import utils
 
 
+def load_spectral_csv(filepath, convert2micron=True):
+    """Reads csv file containing one spectrum, where the first column is wavelengths and second is intensity."""
+    data = np.loadtxt(filepath)
+    wavelengths = data[:, 0]
+    spectrum = data[:, 1]
+    if convert2micron and wavelengths[-1] > 100:  # if last wavelength value is over 100, assume they are nanometers
+        wavelengths = wavelengths / 1000
+
+    return spectrum, wavelengths
+
+
 def file_loader_Dawn_PDS3(filepath):
     """
     Loads PDS3 qube files of Dawn VIR-VIS and VIR-IR data when given path to lbl file associated with either VIS or IR.
