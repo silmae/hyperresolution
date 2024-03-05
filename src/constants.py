@@ -97,3 +97,4 @@ didymos_hc_dist = (1.01 + 2.27) / 2
 
 solar_path = Path('./datasets/E490_solar_spectrum_0.2_to_6micron.csv')
 didymos_path = Path('./datasets/Didymos_simulated/didymos-spectra.txt')
+lab_mixtures_path = Path('./datasets/lab_mineral_spectra')
