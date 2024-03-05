@@ -114,11 +114,24 @@ if __name__ == '__main__':
     didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
     didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
 
+    # Load pyroxene and olivine spectra
+    pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+
+    pyroxene, new_wls, _ = utils.ASPECT_resampling(pyroxene, wls)
+    olivine, new_wls, _ = utils.ASPECT_resampling(olivine, wls)
+
+    # plt.figure()
+    # plt.plot(new_wls, pyroxene, label='Px')
+    # plt.plot(new_wls, olivine, label='Ol')
+    # plt.show()
+
     # Flat spectra to adjust lightness and darkness of pixels
-    dark_em = np.ones(shape=didymos_reflectance.shape) * 0.01
+    dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
     # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
 
-    endmembers = [didymos_reflectance, dark_em] #, light_em]
+    # endmembers = [didymos_reflectance, dark_em] #, light_em]
+    endmembers = [pyroxene, olivine, dark_em]  # , light_em]
 
     # Build and train a neural network
     nn.train(training_data,
