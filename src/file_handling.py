@@ -11,6 +11,7 @@ from planetaryimage import CubeFile
 
 from src import constants
 from src import utils
+from src import simulation
 
 
 def load_spectral_csv(filepath, convert2micron=True):
@@ -68,7 +69,7 @@ def file_loader_Dawn_PDS3(filepath):
     ir_fwhms = [float(x) for x in ir_fwhms]
 
     # Join the VIS and IR cubes and wavelength vectors
-    cube, wavelengths, fwhms = utils.join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_fwhms,
+    cube, wavelengths, fwhms = simulation.join_VIR_VIS_and_IR(vis_cube, ir_cube, vis_wavelengths, ir_wavelengths, vis_fwhms,
                                                          ir_fwhms)
 
     # # Crop the cube a bit in horizontal direction
@@ -111,7 +112,7 @@ def file_loader_Dawn_ISIS(filepath):
             logging.info(f'No dictionary of rotation and crop indices corresponding to {cub_path.name} was found, check constants.py')
             exit(1)
 
-        cube, edges = utils.rot_and_crop_Dawn_VIR_ISIS(data=cube,
+        cube, edges = simulation.rot_and_crop_Dawn_VIR_ISIS(data=cube,
                                                        rot_deg=rot_crop_dict['rot_deg'],
                                                        crop_indices_x=rot_crop_dict['crop_indices_x'],
                                                        crop_indices_y=rot_crop_dict['crop_indices_y'],
@@ -149,7 +150,7 @@ def file_loader_Dawn_ISIS(filepath):
     ir_cube = np.transpose(ir_cube, (2, 1, 0))
 
     # Join the VIS and IR cubes into one, using IR channels for overlapping part
-    cube, wavelengths, FWHMs = utils.join_VIR_VIS_and_IR(vis_cube=vis_cube, ir_cube=ir_cube,
+    cube, wavelengths, FWHMs = simulation.join_VIR_VIS_and_IR(vis_cube=vis_cube, ir_cube=ir_cube,
                                                          vis_wavelengths=vis_wavelengths, ir_wavelengths=ir_wavelengths,
                                                          vis_fwhms=vis_FWHMs, ir_fwhms=ir_FWHMs)
 
@@ -214,9 +215,9 @@ def file_loader_simulated_Didymos(folderpath):
     vis_h_stop_index = int((vis_cube.shape[0] / 2) + (vis_h_pixels / 2))
     vis_cube = vis_cube[vis_h_start_index:vis_h_stop_index, :, :]
     # Crop to NIR aspect ratio, keeping the height dimension the same
-    vis_cube = utils.crop2aspect_ratio(vis_cube, aspect_ratio=constants.ASPECT_NIR_FOV[1] / constants.ASPECT_NIR_FOV[0], keep_dim=0)
+    vis_cube = simulation.crop2aspect_ratio(vis_cube, aspect_ratio=constants.ASPECT_NIR_FOV[1] / constants.ASPECT_NIR_FOV[0], keep_dim=0)
     # Interpolate the VIS part to get same number of pixels as NIR
-    vis_cube = utils.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
+    vis_cube = simulation.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
 
     # # Dark correction
     # eps = 1  # A fairly large epsilon because these are DN readings (ints)
@@ -242,8 +243,8 @@ def file_loader_simulated_Didymos(folderpath):
                                                                     wavelengths=didymos_wavelengths,
                                                                     resample=True)[:, 1]
 
-    theor_vis_radiance = utils.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=vis_wavelengths)
-    theor_nir_radiance = utils.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=nir_wavelengths)
+    theor_vis_radiance = simulation.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=vis_wavelengths)
+    theor_nir_radiance = simulation.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=nir_wavelengths)
 
     # Convert the DN readings into radiance values using reflectance and hc-distance of Didymos
     # Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR
@@ -272,8 +273,8 @@ def file_loader_simulated_Didymos(folderpath):
     ##################################################################################################################
     # Alternatively: just take one frame from the cube for brightness variation, and create the spectral features from the theoretical spectrum
     wavelengths = constants.ASPECT_wavelengths
-    reflected_radiance, _, FWHMs = utils.ASPECT_resampling(didymos_radiance, didymos_wavelengths, FWHMs=None)
-    didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    reflected_radiance, _, FWHMs = simulation.ASPECT_resampling(didymos_radiance, didymos_wavelengths, FWHMs=None)
+    didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
     frame = vis_cube[:, :, 0] / np.max(vis_cube[:, :, 0])
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
     cube = cube * didymos_reflectance #reflected_radiance

@@ -18,6 +18,7 @@ from src import utils
 from src import plotter
 from src import constants
 from src import file_handling
+from src import simulation
 
 if __name__ == '__main__':
     # Set manual seed for comparable results between training runs
@@ -112,14 +113,14 @@ if __name__ == '__main__':
 
     # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
     didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
-    didymos_reflectance, _, _ = utils.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
 
     # Load pyroxene and olivine spectra
     pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
     olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
-    pyroxene, new_wls, _ = utils.ASPECT_resampling(pyroxene, wls)
-    olivine, new_wls, _ = utils.ASPECT_resampling(olivine, wls)
+    pyroxene, new_wls, _ = simulation.ASPECT_resampling(pyroxene, wls)
+    olivine, new_wls, _ = simulation.ASPECT_resampling(olivine, wls)
 
     # plt.figure()
     # plt.plot(new_wls, pyroxene, label='Px')

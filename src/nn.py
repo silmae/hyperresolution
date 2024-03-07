@@ -21,6 +21,7 @@ from src import plotter
 from src import utils
 from src import file_handling
 from src import constants
+from src import simulation
 
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
@@ -181,7 +182,7 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = utils.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
+        NIR_data, SWIR_data, test_data = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
         NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
 
         # Dimension order is [h, w, l]
@@ -326,9 +327,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         short_y_pred = y_pred[:, :SWIR_cutoff_index, :, :]
         long_y_pred = y_pred[:, SWIR_cutoff_index:, :, :]
 
-        short_y_pred = utils.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+        short_y_pred = simulation.apply_circular_mask(short_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                  masking_value=1)
-        long_y_pred = utils.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+        long_y_pred = simulation.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                 masking_value=torch.nan)
 
         # Calculate short wavelength loss by comparing cubes. For loss metrics MAPE and SAM
@@ -422,10 +423,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
             # from the decoder kernel operating on the masked values
-            final_pred = utils.apply_circular_mask(final_pred, w, h,
+            final_pred = simulation.apply_circular_mask(final_pred, w, h,
                                                    radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
                                                        'd_kernel_size'], masking_value=1)
-            # test_cube = utils.apply_circular_mask(test_cube, w, h,
+            # test_cube = simulation.apply_circular_mask(test_cube, w, h,
             #                                       radius=constants.ASPECT_SWIR_equivalent_radius - dec_params[
             #                                           'd_kernel_size'], masking_value=1)
 
@@ -460,14 +461,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_endmembers(endmembers, epoch)
 
             # Get abundance maps from encoder predictions and plot them as images
-            abundances = utils.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
+            abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
             plotter.plot_abundance_maps(abundances, epoch)
 
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
-            final_pred = utils.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+            final_pred = simulation.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
 
