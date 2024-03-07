@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     # # Simulated images of the Didymos system, by Penttilä et al.
     training_data = nn.TrainingData(type='simulated_Didymos',
-                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5_noiseless_10km'))
+                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'))
 
     bands = training_data.l
 

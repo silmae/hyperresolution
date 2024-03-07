@@ -188,17 +188,9 @@ def load_Didymos_reflectance_spectrum(denoise=True):
     return didymos_wavelengths, didymos_reflectance
 
 
-def file_loader_simulated_Didymos(folderpath):
+def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
     """Loads a simulated Didymos image by loading a frame from a simulated DN image, using that as a brightness map
     for a spectrum"""
-
-    # Load both NIR and VIS parts of image into memory
-    filelist = os.listdir(folderpath)
-    for filename in filelist:
-        if ('-vis-' in filename) and ('.mat' in filename):
-            filepath_vis = Path(folderpath, filename)
-        elif '.mat' in filename:
-            filepath_nir = Path(folderpath, filename)
 
     def load_file(filepath):
         data_dict = scipy.io.loadmat(filepath)
@@ -206,33 +198,25 @@ def file_loader_simulated_Didymos(folderpath):
         wavelengths = np.squeeze(data_dict['wavelengths'] / 1000)
         return datacube, wavelengths
 
-    vis_cube, vis_wavelengths = load_file(filepath_vis)
-    nir_cube, nir_wavelengths = load_file(filepath_nir)
-
-    # Crop VIS part to have the same FOV, then interpolate to get same pixel count as NIR
-    # Number of VIS pixels in the height direction, from comparing the FOV:s
-    vis_h_pixels = vis_cube.shape[0] * (constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0])
-    vis_h_start_index = int((vis_cube.shape[0] / 2) - (vis_h_pixels / 2))
-    vis_h_stop_index = int((vis_cube.shape[0] / 2) + (vis_h_pixels / 2))
-    vis_cube = vis_cube[vis_h_start_index:vis_h_stop_index, :, :]
-    # Crop to NIR aspect ratio, keeping the height dimension the same
-    vis_cube = simulation.crop2aspect_ratio(vis_cube, aspect_ratio=constants.ASPECT_NIR_FOV[1] / constants.ASPECT_NIR_FOV[0], keep_dim=0)
-    # Interpolate the VIS part to get same number of pixels as NIR
-    vis_cube = simulation.resize_image_cube(vis_cube, height=nir_cube.shape[0], width=nir_cube.shape[1])
+    cube, nir_wavelengths = load_file(filepath)
 
     # # Dark correction
-    # eps = 1  # A fairly large epsilon because these are DN readings (ints)
-    # vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1)) + eps
-    # nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1)) + eps
+    eps = 10  # A fairly large epsilon because these are DN readings (ints)
+    cube = cube - np.mean(cube[:10, :10, :], axis=(0, 1)) + eps
 
-    didymos_wavelengths, didymos_reflectance = load_Didymos_reflectance_spectrum(denoise=True)
+    # Extract one frame from the image cube
+    frame = cube[:, :, 0] / np.max(cube[:, :, 0])
+
+    if spectrum == 'Didymos': # reflectance spectrum of Didymos
+        data_wavelengths, data_reflectance = load_Didymos_reflectance_spectrum(denoise=True)
+    elif spectrum == 'px50': # laboratory mixture of 50-50 pyroxene and olivine
+        data_reflectance, data_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
 
     # Instead of treating the cubes properly and trying to join them:
     # just take one frame from the cube for brightness variation, and
     # create the spectral features from the theoretical spectrum
     wavelengths = constants.ASPECT_wavelengths
-    didymos_reflectance, _, FWHMs = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
-    frame = vis_cube[:, :, 0] / np.max(vis_cube[:, :, 0])
+    didymos_reflectance, _, FWHMs = simulation.ASPECT_resampling(data_reflectance, data_wavelengths)
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
     cube = cube * didymos_reflectance
     cube = cube * np.expand_dims(frame, axis=2)
