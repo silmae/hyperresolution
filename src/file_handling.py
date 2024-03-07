@@ -189,6 +189,9 @@ def load_Didymos_reflectance_spectrum(denoise=True):
 
 
 def file_loader_simulated_Didymos(folderpath):
+    """Loads a simulated Didymos image by loading a frame from a simulated DN image, using that as a brightness map
+    for a spectrum"""
+
     # Load both NIR and VIS parts of image into memory
     filelist = os.listdir(folderpath)
     for filename in filelist:
@@ -206,8 +209,6 @@ def file_loader_simulated_Didymos(folderpath):
     vis_cube, vis_wavelengths = load_file(filepath_vis)
     nir_cube, nir_wavelengths = load_file(filepath_nir)
 
-    print(f'Last VIS wl: {vis_wavelengths[-1]} µm, first NIR wl: {nir_wavelengths[0]} µm')
-
     # Crop VIS part to have the same FOV, then interpolate to get same pixel count as NIR
     # Number of VIS pixels in the height direction, from comparing the FOV:s
     vis_h_pixels = vis_cube.shape[0] * (constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0])
@@ -224,60 +225,16 @@ def file_loader_simulated_Didymos(folderpath):
     # vis_cube = vis_cube - np.mean(vis_cube[:10, :10, :], axis=(0, 1)) + eps
     # nir_cube = nir_cube - np.mean(nir_cube[:10, :10, :], axis=(0, 1)) + eps
 
-    # fig, ax = plt.subplots(nrows=1, ncols=2)
-    # ax[0].imshow(vis_cube[:, :, 5])
-    # ax[1].imshow(nir_cube[:, :, 5])
-    # plt.show()
-
-    # plt.figure()
-    # plt.plot(nir_wavelengths, nir_cube[200, 300, :])
-    # plt.plot(vis_wavelengths, vis_cube[200, 300, :])
-    # plt.xlabel('Wavelength [µm]')
-    # plt.ylabel('DN')
-    # plt.show()
-
     didymos_wavelengths, didymos_reflectance = load_Didymos_reflectance_spectrum(denoise=True)
 
-    # Calculate expected reflected radiance from the reflectance and insolation at Didymos' heliocentric distance
-    didymos_radiance = didymos_reflectance * utils.solar_irradiance(distance=constants.didymos_hc_dist,
-                                                                    wavelengths=didymos_wavelengths,
-                                                                    resample=True)[:, 1]
-
-    theor_vis_radiance = simulation.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=vis_wavelengths)
-    theor_nir_radiance = simulation.resample_spectrum(np.copy(didymos_radiance), old_wls=didymos_wavelengths, new_wls=nir_wavelengths)
-
-    # Convert the DN readings into radiance values using reflectance and hc-distance of Didymos
-    # Adjust spectra so that intensity at last wl of VIS is near the first wl of NIR
-    middle_indices = (int(nir_cube.shape[0] / 2), int(nir_cube.shape[1] / 2))
-    # middle_indices = (200, 300)
-    vis_radiance = (theor_vis_radiance[-1] / vis_cube[middle_indices[0], middle_indices[1], -1]) * vis_cube
-    nir_radiance = (theor_nir_radiance[0] / nir_cube[middle_indices[0], middle_indices[1], 0]) * nir_cube
-
-    plt.figure()
-    # plt.plot(didymos_wavelengths, didymos_radiance)
-    plt.plot(vis_wavelengths, theor_vis_radiance, label='Theoretical VIS')
-    plt.plot(nir_wavelengths, theor_nir_radiance, label='Theoretical NIR')
-    plt.plot(vis_wavelengths, vis_radiance[middle_indices[0], middle_indices[1], :], label='Simulated VIS')
-    plt.plot(nir_wavelengths, nir_radiance[middle_indices[0], middle_indices[1], :], label='Simulated NIR')
-    plt.legend()
-    # plt.show()
-
-    # TODO Interpolate more frames? Especially in the gap between VIS and NIR
-
-    # Concatenate the two cubes
-    cube = np.concatenate((vis_radiance, nir_radiance), axis=2)
-    wavelengths = np.concatenate((vis_wavelengths, nir_wavelengths))
-
-    # TODO extend into SWIR using the reflectance spectrum?
-
-    ##################################################################################################################
-    # Alternatively: just take one frame from the cube for brightness variation, and create the spectral features from the theoretical spectrum
+    # Instead of treating the cubes properly and trying to join them:
+    # just take one frame from the cube for brightness variation, and
+    # create the spectral features from the theoretical spectrum
     wavelengths = constants.ASPECT_wavelengths
-    reflected_radiance, _, FWHMs = simulation.ASPECT_resampling(didymos_radiance, didymos_wavelengths, FWHMs=None)
-    didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    didymos_reflectance, _, FWHMs = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
     frame = vis_cube[:, :, 0] / np.max(vis_cube[:, :, 0])
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
-    cube = cube * didymos_reflectance #reflected_radiance
+    cube = cube * didymos_reflectance
     cube = cube * np.expand_dims(frame, axis=2)
 
     h = np.shape(cube)[0]
@@ -293,8 +250,6 @@ def file_loader_simulated_Didymos(folderpath):
     # axs[1].plot(wavelengths, cube[300, 300, :])
     # axs[1].plot(wavelengths, cube[300, 350, :])
     # plt.show()
-
-    # FWHMs = np.zeros(shape=wavelengths.shape) + 0.040
 
     return h, w, l, cube, wavelengths, FWHMs
 
