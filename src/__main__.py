@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -94,22 +94,22 @@ if __name__ == '__main__':
     # d_kernel_size
     # ': 5
 
-    # endmember_count = 3   # endmember_count = training_data.abundance_count
-    #
-    # common_params = {'bands': bands,
-    #                  'endmember_count': endmember_count,
-    #                  'learning_rate': 0.000450}
-    #
-    # enc_params = {'enc_layer_count': 5,
-    #               'band_count': constants.ASPECT_SWIR_start_channel_index,
-    #               'endmember_count': common_params['endmember_count'],
-    #               'e_filter_count': 256,
-    #               'e_kernel_size': 6,
-    #               'kernel_reduction': 0}
-    #
-    # dec_params = {'band_count': common_params['bands'],
-    #               'endmember_count': common_params['endmember_count'],
-    #               'd_kernel_size': 1}
+    endmember_count = 3   # endmember_count = training_data.abundance_count
+
+    common_params = {'bands': bands,
+                     'endmember_count': endmember_count,
+                     'learning_rate': 0.000450}
+
+    enc_params = {'enc_layer_count': 5,
+                  'band_count': constants.ASPECT_SWIR_start_channel_index,
+                  'endmember_count': common_params['endmember_count'],
+                  'e_filter_count': 256,
+                  'e_kernel_size': 6,
+                  'kernel_reduction': 0}
+
+    dec_params = {'band_count': common_params['bands'],
+                  'endmember_count': common_params['endmember_count'],
+                  'd_kernel_size': 1}
 
     # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
     didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
@@ -134,15 +134,15 @@ if __name__ == '__main__':
     # endmembers = [didymos_reflectance, dark_em] #, light_em]
     endmembers = [pyroxene, olivine, dark_em]  # , light_em]
 
-    # # Build and train a neural network
-    # nn.train(training_data,
-    #          enc_params=enc_params,
-    #          dec_params=dec_params,
-    #          common_params=common_params,
-    #          initial_endmembers=endmembers,
-    #          epochs=5000,
-    #          prints=True,
-    #          plots=True)
+    # Build and train a neural network
+    nn.train(training_data,
+             enc_params=enc_params,
+             dec_params=dec_params,
+             common_params=common_params,
+             initial_endmembers=endmembers,
+             epochs=5000,
+             prints=True,
+             plots=True)
 
     # ############### Hyperparameter optimization ##################
     epochs = 5000

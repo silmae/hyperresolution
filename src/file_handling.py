@@ -209,8 +209,8 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
 
     if spectrum == 'Didymos': # reflectance spectrum of Didymos
         data_wavelengths, data_reflectance = load_Didymos_reflectance_spectrum(denoise=True)
-    elif spectrum == 'px50': # laboratory mixture of 50-50 pyroxene and olivine
-        data_reflectance, data_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
+    else:  # laboratory mixture of pyroxene and olivine
+        data_reflectance, data_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{spectrum}.csv'))
 
     # Instead of treating the cubes properly and trying to join them:
     # just take one frame from the cube for brightness variation, and
