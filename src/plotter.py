@@ -257,7 +257,7 @@ def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, 
     plt.close(fig)
 
 
-def plot_abundance_maps(abundances, epoch):
+def plot_abundance_maps(abundances, epoch, log_scale=False):
 
     # Sorry about the next lines, can't be bothered to think about this
     count = abundances.shape[0]
@@ -277,7 +277,10 @@ def plot_abundance_maps(abundances, epoch):
     fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
     axs = axs.flatten()
     for i in range(count):
-        im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=10))
+        if log_scale:
+            im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=10))
+        else:
+            im = axs[i].imshow(abundances[i, :, :], vmin=0, vmax=1)
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
