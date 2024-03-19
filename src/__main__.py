@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -147,7 +147,7 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=5000,
+             epochs=10000,
              prints=True,
              plots=True)
 
