@@ -176,7 +176,7 @@ class TrainingData(Dataset):
             wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
-            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px100')
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px10')
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
@@ -544,12 +544,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True,
                                      epoch=epoch)
 
-    plotter.plot_nn_train_history(train_loss=train_losses,
-                                  best_epoch_idx=best_index,
-                                  test_scores=test_scores,
-                                  best_test_epoch_idx=best_test_index,
-                                  file_name='nn_history',
-                                  log_y=True)
+            plotter.plot_nn_train_history(train_loss=train_losses,
+                                          best_epoch_idx=best_index,
+                                          test_scores=test_scores,
+                                          best_test_epoch_idx=best_test_index,
+                                          file_name='figures/nn_history',
+                                          log_y=True)
 
     last_loss = train_losses[-1]
     last_test_loss = test_scores[-1]
