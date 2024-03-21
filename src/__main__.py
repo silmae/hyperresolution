@@ -40,12 +40,34 @@ if __name__ == '__main__':
 
     # # Plot to illustrate how the FOVs of the ASPECT modules overlap each other
     # plotter.illustrate_ASPECT_FOV()
+    pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
+    px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
+    px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
+    px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
+    px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
+
+    plt.figure()
+    plt.plot(wls, pyroxene, label='px')
+    plt.plot(wls, olivine, label='ol')
+    # plt.plot(wls, px10)
+    # plt.plot(wls, px25)
+    plt.plot(wls, px25, label='laboratory mixture')
+    px_factor = 0.25
+
+    plt.plot(wls, (pyroxene * px_factor + olivine * (1 - px_factor)), label='linear mixture')
+    # plt.plot(wls, px75)
+    # plt.plot(wls, px90)
+    plt.legend()
+    plt.show()
+
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
