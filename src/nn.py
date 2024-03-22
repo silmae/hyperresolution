@@ -176,10 +176,13 @@ class TrainingData(Dataset):
             wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
-            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px10')
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px50')
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
+
+        # Then mixing of the signals works better if use logarithms of the endmembers and a logarithm of the input cube
+        cube = np.log(cube)
 
         # Make the data look like it came from ASPECT
         NIR_data, SWIR_data, test_data = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
@@ -209,7 +212,7 @@ class TrainingData(Dataset):
         # Convert the numpy arrays to torch tensors
         self.X = torch.from_numpy(X).float()
         self.Y = torch.from_numpy(Y).float()
-        self.cube = test_data
+        self.cube = test_data  # This test data is only used
 
     def __len__(self):
         return 1
@@ -402,6 +405,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         for x, y in data_loader:
             x, y = x.to(device), y.to(device)  # Move data to GPU memory
             optimizer.zero_grad()  # Reset gradients
+
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
             final_pred = dec(enc_pred)
@@ -413,9 +417,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # Implement freezing the endmembers by just plugging the original back in after backprop
             if initial_endmembers is not None:
                 for i, endmember in enumerate(initial_endmembers):
-                    kalja = torch.tensor(np.expand_dims(endmember, axis=(1, 2)))
-                    foo = dec.layers[-1].weight.data[:, i, :, :]
-                    dec.layers[-1].weight.data[:, i, :, :] = kalja
+                    endmember_tensor = torch.tensor(np.expand_dims(endmember, axis=(1, 2)))
+                    dec.layers[-1].weight.data[:, i, :, :] = endmember_tensor
 
             loss_item = loss.item()
             test_score = test_fn(test_cube, final_pred)
@@ -471,6 +474,11 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             final_pred = simulation.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
+
+            # The prediction is a logarithmic cube, convert to original with exp
+            final_pred = np.exp(final_pred)
+            # Same for original: the test scores are calculated with a tensor version defined earlier
+            cube_original = np.exp(cube_original)
 
             # Construct 3 channels to plot as false color images
             # Average the data for plotting over a few channels from the original cube and the reconstruction

@@ -38,36 +38,38 @@ if __name__ == '__main__':
 
     ############# SANDBOX ###############
 
-    # # Plot to illustrate how the FOVs of the ASPECT modules overlap each other
-    # plotter.illustrate_ASPECT_FOV()
-    pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
-    olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
-    px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
-    px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
-    px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
-    px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
-    px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
-
-    plt.figure()
-    plt.plot(wls, pyroxene, label='px')
-    plt.plot(wls, olivine, label='ol')
-    # plt.plot(wls, px10)
-    # plt.plot(wls, px25)
-    plt.plot(wls, px25, label='laboratory mixture')
-    px_factor = 0.25
-
-    plt.plot(wls, (pyroxene * px_factor + olivine * (1 - px_factor)), label='linear mixture')
-    # plt.plot(wls, px75)
-    # plt.plot(wls, px90)
-    plt.legend()
-    plt.show()
+    # # # Plot to illustrate how the FOVs of the ASPECT modules overlap each other
+    # # plotter.illustrate_ASPECT_FOV()
+    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    # px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
+    # px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
+    # px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
+    # px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
+    # px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
+    #
+    # plt.figure()
+    # plt.plot(wls, pyroxene, label='Pyroxene')
+    # plt.plot(wls, olivine, label='Olivine')
+    # # plt.plot(wls, px10)
+    # # plt.plot(wls, px25)
+    # plt.plot(wls, px50, label='Laboratory mixture')
+    # px_factor = 0.50
+    #
+    # plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)), label='Linear mixture (simulated)')
+    # # plt.plot(wls, px75)
+    # # plt.plot(wls, px90)
+    # plt.legend()
+    # plt.xlabel('Wavelengths [µm]')
+    # plt.ylabel('Reflectance')
+    # plt.show()
 
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -160,8 +162,9 @@ if __name__ == '__main__':
     dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
     # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
 
+    # Then mixing of the signals works better if use logarithms of the endmembers and a logarithm of the input cube
     # endmembers = [didymos_reflectance, dark_em] #, light_em]
-    endmembers = [pyroxene, olivine, dark_em]  # , light_em]
+    endmembers = [np.log(pyroxene), np.log(olivine), np.log(dark_em)]  # , light_em]
 
     # Build and train a neural network
     nn.train(training_data,
