@@ -142,21 +142,25 @@ class Decoder(nn.Module):
         )
 
     def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
-            # Force the weights to be positive, these will be the endmember spectra:
-            layer.weight.data = layer.weight.data.clamp(min=0)
-            # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
-            variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
-            layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :,
-                                             :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
 
-            # Set weights of the first decoder kernel to match the value used for masks
-            orig_kernel = layer.weight.data[:, 0, :, :]
-            mask_endmember = np.zeros(orig_kernel.shape)
-            mid_index = int((orig_kernel.shape[1] - 1) / 2)
-            mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
-            layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
+        for layer in self.layers:
+            # Run input data through layer
+            x = layer(x)
+            # # Force the weights to be positive, these will be the endmember spectra:
+            # layer.weight.data = layer.weight.data.clamp(min=0)
+            # # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
+            # variation = layer.weight.data[1:, :, :, :] - layer.weight.data[:-1, :, :, :]
+            # layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :,
+            #                                  :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
+
+            # # Set weights of the first decoder kernel to match the value used for masks
+            # orig_kernel = layer.weight.data[:, 0, :, :]
+            # mask_endmember = np.zeros(orig_kernel.shape)
+            # mid_index = int((orig_kernel.shape[1] - 1) / 2)
+            # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
+            # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
+        # The mixing uses logarithms of the endmember signals, so convert output cube back with exponent function
+        x = torch.exp(x)
 
         return x
 
@@ -180,9 +184,6 @@ class TrainingData(Dataset):
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
-
-        # Then mixing of the signals works better if use logarithms of the endmembers and a logarithm of the input cube
-        cube = np.log(cube)
 
         # Make the data look like it came from ASPECT
         NIR_data, SWIR_data, test_data = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
@@ -212,7 +213,7 @@ class TrainingData(Dataset):
         # Convert the numpy arrays to torch tensors
         self.X = torch.from_numpy(X).float()
         self.Y = torch.from_numpy(Y).float()
-        self.cube = test_data  # This test data is only used
+        self.cube = test_data
 
     def __len__(self):
         return 1
@@ -288,7 +289,8 @@ def tensor_image_corrcoeff(y_true, y_pred):
     flattened_means[0, :] = torch.flatten(y_true_mean)
     flattened_means[1, :] = torch.flatten(y_pred_mean)
     spatial_correlation = torch.corrcoef(flattened_means)[0, 1]  # Returns 2-by-2 matrix, take non-diagonal element
-
+    if torch.isnan(spatial_correlation):
+        spatial_correlation = 1e-10
     return spatial_correlation
 
 
@@ -350,7 +352,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # Correlation of GT cube spatial features and full reconstruction cube spatial features
         spatial_correlation = tensor_image_corrcoeff(short_y_true, y_pred)
 
-        # # Printing the losses separately for debugging purposes
+        # # # Printing the losses separately for debugging purposes
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}')
 
         # Loss as sum of the calculated components
@@ -370,7 +372,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
         score_MAPE = metric_MAPE(predcube, groundcube)
-        # TODO calculate penalty for noise in output spectra?
+
         score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
         return score_SAM + score_MAPE + score_spatial_corr
 
@@ -444,9 +446,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             best_loss = loss_item
             best_index = epoch
 
+        early_stop_thresh = 50
         if test_item < best_test_loss:
             best_test_loss = test_item
             best_test_index = epoch
+        elif (epoch > 500) and (epoch - best_test_index > early_stop_thresh):
+            print("Early stopped training at epoch %d" % epoch)
+            break  # terminate the training loop
 
             # # This will save the whole shebang, which is a bit stupid
             # enc_save_name = "encoder.pt"
@@ -455,7 +461,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 1000 == 0 or epoch == n_epochs - 1):
+        if plots is True and (epoch % 100 == 0 or epoch == n_epochs - 1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
             # Retrieve endmember spectra by summing the weights of each kernel
@@ -474,11 +480,6 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             final_pred = simulation.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
-
-            # The prediction is a logarithmic cube, convert to original with exp
-            final_pred = np.exp(final_pred)
-            # Same for original: the test scores are calculated with a tensor version defined earlier
-            cube_original = np.exp(cube_original)
 
             # Construct 3 channels to plot as false color images
             # Average the data for plotting over a few channels from the original cube and the reconstruction
@@ -520,7 +521,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     R2_dist = R2_distance(orig, pred)
                     R2_distances[i, j] = R2_dist
 
-                    if (spectral_angle + R2_dist) < best_score:
+                    if ((spectral_angle + R2_dist) < best_score) and (np.mean(orig[:-1] - orig[1:]) != 0):
                         best_score = spectral_angle + R2_dist
                         best_indices = (i, j)
                     if (spectral_angle + R2_dist) > worst_score and np.mean(orig) != 1 and np.mean(orig) > 0.01:
