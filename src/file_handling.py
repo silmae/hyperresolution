@@ -200,9 +200,8 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
 
     cube, nir_wavelengths = load_file(filepath)
 
-    # # Dark correction
-    eps = 10  # A fairly large epsilon because these are DN readings (ints)
-    cube = cube - np.mean(cube[:10, :10, :], axis=(0, 1)) + eps
+    # Dark correction
+    cube = cube - np.mean(cube[:10, :10, :], axis=(0, 1))
 
     # Extract one frame from the image cube
     frame = cube[:, :, 0] / np.max(cube[:, :, 0])
@@ -220,6 +219,10 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
     cube = cube * didymos_reflectance
     cube = cube * np.expand_dims(frame, axis=2)
+
+    # Add a small epsilon value to not get 0 at the areas not occupied by the asteroid - this is done avoid division by
+    # zero later
+    cube = cube + 1e-4
 
     h = np.shape(cube)[0]
     w = np.shape(cube)[1]
