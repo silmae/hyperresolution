@@ -446,13 +446,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             best_loss = loss_item
             best_index = epoch
 
-        early_stop_thresh = 50
-        if test_item < best_test_loss:
-            best_test_loss = test_item
-            best_test_index = epoch
-        elif (epoch > 500) and (epoch - best_test_index > early_stop_thresh):
-            print("Early stopped training at epoch %d" % epoch)
-            break  # terminate the training loop
+        # early_stop_thresh = 50
+        # if test_item < best_test_loss:
+        #     best_test_loss = test_item
+        #     best_test_index = epoch
+        # elif (epoch > 500) and (epoch - best_test_index > early_stop_thresh):
+        #     print("Early stopped training at epoch %d" % epoch)
+        #     break  # terminate the training loop
 
             # # This will save the whole shebang, which is a bit stupid
             # enc_save_name = "encoder.pt"
@@ -461,7 +461,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 100 == 0 or epoch == n_epochs - 1):
+        if plots is True and (epoch % 500 == 0 or epoch == n_epochs - 1):
             # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
             endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
             # Retrieve endmember spectra by summing the weights of each kernel
@@ -521,7 +521,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     R2_dist = R2_distance(orig, pred)
                     R2_distances[i, j] = R2_dist
 
-                    if ((spectral_angle + R2_dist) < best_score) and (np.mean(orig[:-1] - orig[1:]) != 0):
+                    if ((spectral_angle + R2_dist) < best_score) and (not np.isnan(orig[0])) and (np.mean(abs(orig[:-1] - orig[1:])) > 0.001):
                         best_score = spectral_angle + R2_dist
                         best_indices = (i, j)
                     if (spectral_angle + R2_dist) > worst_score and np.mean(orig) != 1 and np.mean(orig) > 0.01:
