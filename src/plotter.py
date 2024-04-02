@@ -281,6 +281,8 @@ def plot_abundance_maps(abundances, epoch, log_scale=False):
             im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=10))
         else:
             im = axs[i].imshow(abundances[i, :, :], vmin=0, vmax=1)
+            mid_point_abundance = abundances[i, int(constants.ASPECT_NIR_channel_shape[0] / 2), int(constants.ASPECT_NIR_channel_shape[1] / 2)]
+            axs[i].title.set_text(f'Middle point: {mid_point_abundance:.2f}')
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
