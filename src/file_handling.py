@@ -188,9 +188,9 @@ def load_Didymos_reflectance_spectrum(denoise=True):
     return didymos_wavelengths, didymos_reflectance
 
 
-def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
+def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
     """Loads a simulated Didymos image by loading a frame from a simulated DN image, using that as a brightness map
-    for a spectrum"""
+    for a spectrum. Can create a circular area of different material to simulate a crater. """
 
     def load_file(filepath):
         data_dict = scipy.io.loadmat(filepath)
@@ -203,7 +203,7 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
     # Dark correction
     cube = cube - np.mean(cube[:10, :10, :], axis=(0, 1))
 
-    # Extract one frame from the image cube
+    # Extract one frame from the image cube and normalize it so that maximum value is 1
     frame = cube[:, :, 0] / np.max(cube[:, :, 0])
 
     if spectrum == 'Didymos': # reflectance spectrum of Didymos
@@ -219,6 +219,31 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos'):
     cube = np.ones(shape=(frame.shape[0], frame.shape[1], len(wavelengths)))
     cube = cube * didymos_reflectance
     cube = cube * np.expand_dims(frame, axis=2)
+
+    if crater is not None:
+        crater_reflectance, crater_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{crater}.csv'))
+        crater_reflectance, _, _ = simulation.ASPECT_resampling(crater_reflectance, crater_wavelengths)
+
+        crater_masked = simulation.apply_circular_mask(data=np.copy(cube),
+                                                             h=cube.shape[0],
+                                                             w=cube.shape[1],
+                                                             radius=constants.ASPECT_SWIR_equivalent_radius / 5,
+                                                             masking_value=0)
+
+        # Set the crater area to 0 in the spectral image cube
+        cube = cube - crater_masked
+
+        # Calculate a cube that has proper data only in the crater and rest is zeroes
+        crater_frame = crater_masked[:, :, 0] / np.max(crater_masked[:, :, 0])
+        crater_masked = np.expand_dims(crater_frame, axis=2) * crater_reflectance
+
+        # Plug the crater cube into the actual cube
+        cube = cube + crater_masked
+
+        # fig, axs = plt.subplots(1, 2)
+        # axs[0].imshow(crater_masked[:, :, 30])
+        # axs[1].imshow(cube[:, :, 30])
+        # plt.show()
 
     # Add a small epsilon value to not get 0 at the areas not occupied by the asteroid - this is done avoid division by
     # zero later

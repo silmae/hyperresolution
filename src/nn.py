@@ -180,7 +180,7 @@ class TrainingData(Dataset):
             wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
-            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px50')
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px25')
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
