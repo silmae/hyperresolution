@@ -107,8 +107,8 @@ class Encoder(nn.Module):
             self.norms.append(nn.BatchNorm2d(count))
         self.norms.append(nn.BatchNorm2d(endmember_count))
 
-        # self.activation = F.leaky_relu_
-        self.activation = F.selu_
+        self.activation = F.leaky_relu_
+        # self.activation = F.selu_
 
     def forward(self, x):
 
@@ -117,7 +117,7 @@ class Encoder(nn.Module):
             x = self.norms[i](x)
             # x = self.dropout(x)  # dropout does not do good apparently
 
-        out = self.soft_max(x * 3.5)  # the magical constant is from Palsson's paper, there called alpha
+        out = self.soft_max(x * 10)  # the magical constant is from Palsson's paper, there called alpha
 
         return out
 
