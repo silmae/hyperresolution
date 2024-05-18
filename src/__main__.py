@@ -138,10 +138,10 @@ if __name__ == '__main__':
                      'endmember_count': endmember_count,
                      'learning_rate': 0.027}
 
-    enc_params = {'enc_layer_count': 7,
+    enc_params = {'enc_layer_count': 9,
                   'band_count': constants.ASPECT_SWIR_start_channel_index,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 287,
+                  'e_filter_count': 512,
                   'e_kernel_size': 3,
                   'kernel_reduction': 4}
 
@@ -180,7 +180,7 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=6000,
+             epochs=3000,
              prints=True,
              plots=True)
 
