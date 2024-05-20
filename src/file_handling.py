@@ -211,6 +211,15 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
     else:  # laboratory mixture of pyroxene and olivine
         data_reflectance, data_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{spectrum}.csv'))
 
+        # Ground truth abundance maps using the normalized frame and the pyroxene percentage
+        px_abundance = np.copy(frame) * float(spectrum[2:]) / 100
+        ol_abundance = np.copy(frame) * (100 - float(spectrum[2:])) / 100
+        # fig, axs = plt.subplots(1, 2)
+        # axs[0].imshow(px_abundance)
+        # axs[1].imshow(ol_abundance)
+        # plt.show()
+        gt_abundances = [px_abundance, ol_abundance]
+
     # Instead of treating the cubes properly and trying to join them:
     # just take one frame from the cube for brightness variation, and
     # create the spectral features from the theoretical spectrum
@@ -224,11 +233,12 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         crater_reflectance, crater_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{crater}.csv'))
         crater_reflectance, _, _ = simulation.ASPECT_resampling(crater_reflectance, crater_wavelengths)
 
-        crater_masked = simulation.apply_circular_mask(data=np.copy(cube),
-                                                             h=cube.shape[0],
-                                                             w=cube.shape[1],
-                                                             radius=constants.ASPECT_SWIR_equivalent_radius / 5,
-                                                             masking_value=0)
+        crater_masked, mask = simulation.apply_circular_mask(data=np.copy(cube),
+                                                       h=cube.shape[0],
+                                                       w=cube.shape[1],
+                                                       radius=constants.ASPECT_SWIR_equivalent_radius / 5,
+                                                       masking_value=0,
+                                                       return_mask=True)
 
         # Set the crater area to 0 in the spectral image cube
         cube = cube - crater_masked
@@ -240,9 +250,27 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         # Plug the crater cube into the actual cube
         cube = cube + crater_masked
 
+        # Similar treatment for the abundance maps: calculate abundaces of the crater, set crater area to zero in
+        # original abundance maps, then plug in the crater abundance maps
+
+        # Normalized abundance map of crater
+        norm_abundance_masked = np.copy(gt_abundances[0])
+        norm_abundance_masked = (norm_abundance_masked * mask) / np.max(norm_abundance_masked * mask)
+        # Calculate crater abundance maps
+        px_abundance_masked = norm_abundance_masked * float(crater[2:]) / 100
+        ol_abundance_masked = norm_abundance_masked * (100 - float(crater[2:])) / 100
+
+        # Set the crater area to zero
+        for i in range(2):
+            gt_abundances[i] = gt_abundances[i] - (gt_abundances[i] * mask)
+
+        # Plug the crater abundance maps in the original maps
+        gt_abundances[0] = gt_abundances[0] + px_abundance_masked
+        gt_abundances[1] = gt_abundances[1] + ol_abundance_masked
+
         # fig, axs = plt.subplots(1, 2)
-        # axs[0].imshow(crater_masked[:, :, 30])
-        # axs[1].imshow(cube[:, :, 30])
+        # axs[0].imshow(gt_abundances[0])
+        # axs[1].imshow(gt_abundances[1])
         # plt.show()
 
     # Add a small epsilon value to not get 0 at the areas not occupied by the asteroid - this is done avoid division by
@@ -263,7 +291,7 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
     # axs[1].plot(wavelengths, cube[300, 350, :])
     # plt.show()
 
-    return h, w, l, cube, wavelengths, FWHMs
+    return h, w, l, cube, wavelengths, FWHMs, gt_abundances
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):

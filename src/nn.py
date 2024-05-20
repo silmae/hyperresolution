@@ -180,7 +180,8 @@ class TrainingData(Dataset):
             wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
-            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px25')
+            h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px25')
+            self.gt_abundances = gt_abundances
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
@@ -376,6 +377,24 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
         return score_SAM + score_MAPE + score_spatial_corr
 
+    def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
+        """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
+        to ideal ones. """
+        RMSE_scores = np.zeros((2, ground_abundances[0].shape[0], ground_abundances[0].shape[1]))
+        for index in range(len(ground_abundances)):
+            error = np.abs(pred_abundances[index] - ground_abundances[index]) ** 2
+            RMSE_scores[i, :, :] = np.sqrt((1 / len(ground_abundances)) * error)
+
+        fig, axs = plt.subplots(1, 2)
+        axs[0].imshow(RMSE_scores[0, :, :])
+        axs[1].imshow(RMSE_scores[1, :, :])
+        plt.show()
+
+        if return_maps:
+            return RMSE_scores
+        else:
+            return np.sum(RMSE_scores)
+
     # FROM https://medium.com/dataseries/convolutional-autoencoder-in-pytorch-on-mnist-dataset-d65145c132ac
     params_to_optimize = [
         {'params': enc.parameters()},
@@ -388,6 +407,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     # For storing performance results
     train_losses = []
     test_scores = []
+    test_scores_unmixing = []
 
     n_epochs = epochs
     best_loss = 1e10
@@ -425,6 +445,17 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             loss_item = loss.item()
             test_score = test_fn(test_cube, final_pred)
             test_item = test_score.item()
+
+            # Unmixing performance by comparing predicted abundance maps to ground truth ones
+            abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h,
+                                                        radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                        masking_value=torch.nan)
+            abundances = np.squeeze(abundances.cpu().detach().numpy())
+            pred_abundances = []
+            pred_abundances.append(abundances[0, :, :])
+            pred_abundances.append(abundances[1, :, :])
+            test_scores_unmixing.append(test_fn_unmixing(training_data.gt_abundances, pred_abundances))
+            print(test_scores_unmixing[-1])
 
             # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
             # from the decoder kernel operating on the masked values
