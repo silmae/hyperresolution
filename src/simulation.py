@@ -230,7 +230,7 @@ def apply_vignetting(cube: np.ndarray, sigma=None, keep_mean_intensity=True):
 
 
 def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center: tuple = None,
-                        radius: int = None, masking_value=1) -> np.ndarray or torch.Tensor:
+                        radius: int = None, masking_value=1, return_mask=False) -> np.ndarray or torch.Tensor:
     """
     Create a circular mask and apply it to an image cube. Works for ndarrays and torch tensors.
     Mask creation from https://stackoverflow.com/a/44874588
@@ -274,8 +274,10 @@ def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center
         # mask = abs((mask * 1))  # the above returns a mask of booleans, this converts it to int (somehow)
         masked_data = data * np.expand_dims(mask, axis=2)  # Need to have the same number of dimensions on mask and data
         masked_data = np.where(masked_data == 0, masking_value, masked_data)
-
-    return masked_data
+    if return_mask:
+        return masked_data, mask
+    else:
+        return masked_data
 
 
 def resize_image_cube(cube, height, width):
