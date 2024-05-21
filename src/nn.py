@@ -181,6 +181,9 @@ class TrainingData(Dataset):
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px25')
+            # Transpose the abundance maps to get matching dimensions with network predictions
+            for index, abundance in enumerate(gt_abundances):
+                gt_abundances[index] = np.transpose(abundance)
             self.gt_abundances = gt_abundances
         else:
             logging.info('Invalid training data type, ending execution')
@@ -380,20 +383,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
         """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
         to ideal ones. """
-        RMSE_scores = np.zeros((2, ground_abundances[0].shape[0], ground_abundances[0].shape[1]))
+        RMSE_scores = np.zeros((2, pred_abundances[0].shape[0], pred_abundances[0].shape[1]))
         for index in range(len(ground_abundances)):
             error = np.abs(pred_abundances[index] - ground_abundances[index]) ** 2
-            RMSE_scores[i, :, :] = np.sqrt((1 / len(ground_abundances)) * error)
-
-        fig, axs = plt.subplots(1, 2)
-        axs[0].imshow(RMSE_scores[0, :, :])
-        axs[1].imshow(RMSE_scores[1, :, :])
-        plt.show()
+            RMSE_scores[index, :, :] = np.sqrt((1 / len(ground_abundances)) * error)
 
         if return_maps:
             return RMSE_scores
         else:
-            return np.sum(RMSE_scores)
+            return np.nanmean(RMSE_scores)
 
     # FROM https://medium.com/dataseries/convolutional-autoencoder-in-pytorch-on-mnist-dataset-d65145c132ac
     params_to_optimize = [
@@ -415,6 +413,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
     best_test_loss = 1e10
     best_test_index = 0
+
+    best_unmixing_test_loss = 1e10
+    best_unmixing_test_index = 0
 
     final_pred = None
 
@@ -451,11 +452,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                                         radius=constants.ASPECT_SWIR_equivalent_radius,
                                                         masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
-            pred_abundances = []
-            pred_abundances.append(abundances[0, :, :])
-            pred_abundances.append(abundances[1, :, :])
-            test_scores_unmixing.append(test_fn_unmixing(training_data.gt_abundances, pred_abundances))
-            print(test_scores_unmixing[-1])
+            pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
+            test_item_unmixing = test_fn_unmixing(training_data.gt_abundances, pred_abundances)
+            test_scores_unmixing.append(test_item_unmixing)
 
             # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
             # from the decoder kernel operating on the masked values
@@ -476,6 +475,12 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if loss_item < best_loss:
             best_loss = loss_item
             best_index = epoch
+        if test_item < best_test_loss:
+            best_loss = test_item
+            best_test_index = epoch
+        if test_item_unmixing < best_unmixing_test_loss:
+            best_unmixing_test_loss = test_item_unmixing
+            best_unmixing_test_index = epoch
 
         # early_stop_thresh = 50
         # if test_item < best_test_loss:
@@ -492,13 +497,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 500 == 0 or epoch == n_epochs - 1):
-            # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
-            endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
-            # Retrieve endmember spectra by summing the weights of each kernel
-            # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
-            endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
-            plotter.plot_endmembers(endmembers, epoch)
+        if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
+
+            if initial_endmembers is None:  # Plot endmember spectra if they are not given as parameters
+                # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
+                endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
+                # Retrieve endmember spectra by summing the weights of each kernel
+                # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
+                endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
+                plotter.plot_endmembers(endmembers, epoch)
 
             # Get abundance maps from encoder predictions and plot them as images
             abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
@@ -506,33 +513,41 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             abundances = np.squeeze(abundances.cpu().detach().numpy())
             plotter.plot_abundance_maps(abundances, epoch)
 
+            # Plot RMSE error maps of abundance predictions
+            pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
+            abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
+            plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
+
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
             final_pred = simulation.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=0)
             final_pred = final_pred.detach().cpu().numpy()
 
-            # Construct 3 channels to plot as false color images
-            # Average the data for plotting over a few channels from the original cube and the reconstruction
-            false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
-            false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
-            for i in range(10):
-                false_col_org = false_col_org + cube_original[
-                                                (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
-                                                :, :]  # TODO replace hardcoded indices
+            # # Construct 3 channels to plot as false color images
+            # # Average the data for plotting over a few channels from the original cube and the reconstruction
+            # false_col_org = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
+            # false_col_rec = np.zeros((3, np.shape(cube_original)[1], np.shape(cube_original)[2]))
+            # for i in range(10):
+            #     false_col_org = false_col_org + cube_original[
+            #                                     (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
+            #                                     :, :]  # TODO replace hardcoded indices
+            #
+            #     false_col_rec = false_col_rec + final_pred[
+            #                                     (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
+            #                                     :, :]
+            # # juggle dimensions for plotting
+            # false_col_org = np.transpose(false_col_org, (2, 1, 0))
+            # false_col_rec = np.transpose(false_col_rec, (2, 1, 0))
+            # # Convert nans to zeros and normalize with maximum value in the image
+            # false_col_org = np.nan_to_num(false_col_org, nan=0)
+            # false_col_rec = np.nan_to_num(false_col_rec, nan=0)
+            # false_col_org = (false_col_org / np.max(false_col_org))
+            # false_col_rec = (false_col_rec / np.max(false_col_rec))
+            # plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True,
+            #                          epoch=epoch)
 
-                false_col_rec = false_col_rec + final_pred[
-                                                (SWIR_cutoff_index + 5 + i, SWIR_cutoff_index + 15 + i, bands - 5 - i),
-                                                :, :]
-            # juggle dimensions for plotting
-            false_col_org = np.transpose(false_col_org, (2, 1, 0))
-            false_col_rec = np.transpose(false_col_rec, (2, 1, 0))
-            # Convert nans to zeros and normalize with maximum value in the image
-            false_col_org = np.nan_to_num(false_col_org, nan=0)
-            false_col_rec = np.nan_to_num(false_col_rec, nan=0)
-            false_col_org = (false_col_org / np.max(false_col_org))
-            false_col_rec = (false_col_rec / np.max(false_col_rec))
-
+            # Calculate spectral angle between ground and pred in each pixel, then plot the values as a colormap
             shape = np.shape(final_pred)
             spectral_angles = np.zeros((shape[1], shape[2]))
             R2_distances = np.zeros((shape[1], shape[2]))
@@ -581,17 +596,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plt.savefig(path, dpi=300)
             plt.close(fig)
 
-            plotter.plot_false_color(false_org=false_col_org, false_reconstructed=false_col_rec, dont_show=True,
-                                     epoch=epoch)
-
             plotter.plot_nn_train_history(train_loss=train_losses,
                                           best_epoch_idx=best_index,
-                                          test_scores=test_scores,
+                                          test_scores=test_scores_unmixing,
                                           best_test_epoch_idx=best_test_index,
                                           file_name='figures/nn_history',
                                           log_y=True)
 
     last_loss = train_losses[-1]
     last_test_loss = test_scores[-1]
+    last_unmixing_test_loss = test_scores_unmixing[-1]
 
-    return best_loss, best_test_loss, last_loss, last_test_loss
+    return best_loss, best_test_loss, best_unmixing_test_loss, last_loss, last_test_loss, last_unmixing_test_loss
