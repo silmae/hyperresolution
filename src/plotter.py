@@ -261,7 +261,10 @@ def plot_abundance_maps(abundances, epoch, log_scale=False):
 
     # Sorry about the next lines, can't be bothered to think about this
     count = abundances.shape[0]
-    if count <= 4:
+    if count <= 2:
+        n_row = 1
+        n_col = 2
+    elif count <= 4:
         n_row = 2
         n_col = 2
     elif count <= 6:
