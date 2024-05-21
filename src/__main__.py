@@ -206,14 +206,15 @@ if __name__ == '__main__':
     #                   'd_kernel_size': 1}
     #
     #     try:
-    #         best_loss, best_test_loss, last_loss, last_test_loss = nn.train(training_data,
-    #                                                                         enc_params=enc_params,
-    #                                                                         dec_params=dec_params,
-    #                                                                         common_params=common_params,
-    #                                                                         epochs=epochs,
-    #                                                                         initial_endmembers=endmembers,
-    #                                                                         plots=False,
-    #                                                                         prints=True)
+    #         best_loss, best_test_loss, best_unmixing_test_loss, last_loss, last_test_loss, last_unmixing_test_loss = \
+    #             nn.train(training_data,
+    #             enc_params=enc_params,
+    #             dec_params=dec_params,
+    #             common_params=common_params,
+    #             epochs=epochs,
+    #             initial_endmembers=endmembers,
+    #             plots=False,
+    #             prints=True)
     #     except:
     #         logging.info('Something went wrong, terminating and trying next configuration')
     #         last_test_loss = 100
