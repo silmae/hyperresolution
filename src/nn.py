@@ -426,7 +426,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     ]
 
     # Defining the optimizer and setting its learning rate
-    optimizer = torch.optim.Adam(params_to_optimize, lr=common_params['learning_rate'])
+    optimizer = torch.optim.AdamW(params_to_optimize, lr=common_params['learning_rate'])
 
     # For storing performance results
     train_losses = []
