@@ -130,10 +130,30 @@ class Decoder(nn.Module):
         self.band_count = band_count
         self.endmember_count = endmember_count
         self.kernel_size = d_kernel_size
-        self.layers = nn.ModuleList()
+        self.layers_linear = nn.ModuleList()
+        self.layers_nonlinear = nn.ModuleList()
+        self.activation_nonlinear = F.leaky_relu_
 
-        self.layers.append(
+        self.layers_linear.append(
             nn.Conv2d(in_channels=self.endmember_count,
+                      out_channels=self.band_count,
+                      kernel_size=self.kernel_size,
+                      padding='same',
+                      stride=1,
+                      bias=False)
+        )
+
+        self.layers_nonlinear.append(
+            nn.Conv2d(in_channels=self.band_count,
+                      out_channels=self.band_count,
+                      kernel_size=self.kernel_size,
+                      padding='same',
+                      stride=1,
+                      bias=False)
+        )
+
+        self.layers_nonlinear.append(
+            nn.Conv2d(in_channels=self.band_count,
                       out_channels=self.band_count,
                       kernel_size=self.kernel_size,
                       padding='same',
@@ -143,7 +163,7 @@ class Decoder(nn.Module):
 
     def forward(self, x):
 
-        for layer in self.layers:
+        for layer in self.layers_linear:
             # Run input data through layer
             x = layer(x)
             # # Force the weights to be positive, these will be the endmember spectra:
@@ -159,10 +179,16 @@ class Decoder(nn.Module):
             # mid_index = int((orig_kernel.shape[1] - 1) / 2)
             # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
             # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
-        # The mixing uses logarithms of the endmember signals, so convert output cube back with exponent function
-        x = torch.exp(x)
 
-        return x
+        # The mixing uses logarithms of the endmember signals, so convert output cube back with exponent function
+        x_linear = torch.exp(x)
+
+        x = torch.clone(x_linear)
+        for layer in self.layers_nonlinear:
+            x = self.activation_nonlinear(layer(x))
+        x_nonlinear = x
+
+        return x_linear + x_nonlinear
 
 
 class TrainingData(Dataset):
@@ -249,7 +275,7 @@ def init_network(enc_params, dec_params, common_params, endmembers=None):
     # If endmember spectra are given as parameters, set them as decoder kernel weights
     if endmembers is not None:
         for i, endmember in enumerate(endmembers):
-            dec.layers[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
+            dec.layers_linear[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
     # plt.figure()
     # plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
     # plt.plot(dec.layers[-1].weight.data[:, 1, 0, 0].detach().cpu().numpy())
@@ -441,7 +467,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             if initial_endmembers is not None:
                 for i, endmember in enumerate(initial_endmembers):
                     endmember_tensor = torch.tensor(np.expand_dims(endmember, axis=(1, 2)))
-                    dec.layers[-1].weight.data[:, i, :, :] = endmember_tensor
+                    dec.layers_linear[-1].weight.data[:, i, :, :] = endmember_tensor
 
             loss_item = loss.item()
             test_score = test_fn(test_cube, final_pred)
