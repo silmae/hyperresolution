@@ -386,7 +386,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + (loss_short_SAM * 10) + 10 * loss_long + 10 * (loss_long_SAM * 10) + 10 * (1 - spatial_correlation)
+        loss_sum = loss_short + (loss_short_SAM * 100) + 10 * loss_long + 10 * (loss_long_SAM * 100) + 100 * (1 - spatial_correlation)
+        # loss_sum = loss_short_SAM + 10 * loss_long_SAM + 10 * (1 - spatial_correlation)
 
         return loss_sum
 
