@@ -194,7 +194,7 @@ class Decoder(nn.Module):
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
-    def __init__(self, type, filepath):
+    def __init__(self, type, filepath, data_shape='actual'):
 
         if type == 'DAWN_PDS3':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_PDS3(filepath)
@@ -216,34 +216,39 @@ class TrainingData(Dataset):
             exit(1)
 
         # Make the data look like it came from ASPECT
-        NIR_data, SWIR_data, test_data = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False)
-        NIR_data = np.nan_to_num(NIR_data, nan=1)  # Convert nans of short cube to ones
+        input_cube, SWIR_data, test_cube = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False, data_shape=data_shape)
+        input_cube = np.nan_to_num(input_cube, nan=1)  # Convert nans of short cube to ones
+        if data_shape != 'actual':
+            test_cube = np.nan_to_num(test_cube, nan=1)  # Convert nans of test cube to ones if no need to calculate nanmean
 
         # Dimension order is [h, w, l]
-        self.h = test_data.shape[0]
-        self.w = test_data.shape[1]
-        self.l = test_data.shape[2]
+        self.h = test_cube.shape[0]
+        self.w = test_cube.shape[1]
+        self.l = test_cube.shape[2]
 
         # Dimensions of the image must be [batches, bands, width, height] for convolution
         # Transform from original [h, w, bands] with transpose
-        test_data = np.transpose(test_data, (2, 1, 0))
-        NIR_data = np.transpose(NIR_data, (2, 1, 0))
+        test_cube = np.transpose(test_cube, (2, 1, 0))
+        input_cube = np.transpose(input_cube, (2, 1, 0))
 
-        Y = np.zeros((2, NIR_data.shape[0], NIR_data.shape[1],
-                      NIR_data.shape[2]))  # add a dimension where the SWIR spectrum can be placed
-        # Y[0, :, 0, 0] = SWIR_data
-        SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
-        Y[0, :SWIR_length, 0, 0] = SWIR_data
-        Y[1, :, :, :] = NIR_data
+        if data_shape == 'actual':
+            Y = np.zeros((2, input_cube.shape[0], input_cube.shape[1],
+                          input_cube.shape[2]))  # add a dimension where the SWIR spectrum can be placed
+            # Y[0, :, 0, 0] = SWIR_data
+            SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
+            Y[0, :SWIR_length, 0, 0] = SWIR_data
+            Y[1, :, :, :] = input_cube
+        else:
+            Y = test_cube
 
-        X = NIR_data
+        X = input_cube
 
         # l_half = int(self.l / 2)
 
         # Convert the numpy arrays to torch tensors
         self.X = torch.from_numpy(X).float()
         self.Y = torch.from_numpy(Y).float()
-        self.cube = test_data
+        self.cube = test_cube
 
     def __len__(self):
         return 1
@@ -324,7 +329,7 @@ def tensor_image_corrcoeff(y_true, y_pred):
     return spatial_correlation
 
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, initial_endmembers=None):
+def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, initial_endmembers=None, data_shape='actual'):
     bands = training_data.l
     SWIR_cutoff_index = constants.ASPECT_SWIR_start_channel_index
 
@@ -391,21 +396,26 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         return loss_sum
 
-    def test_fn(groundcube, predcube):
+    def test_fn(groundcube, predcube, only_SWIR=True):
         """Calculate a test score for a prediction by comparing the predicted cube to a ground truth one.
         Very similar to loss_fn, but the long wavelengths are not averaged into single spectrum.
         N.B. This sort of testing is not possible if the approach is ever applied in practice!"""
 
-        # Only the errors of the latter half are really interesting, so discard the shorter channels
-        predcube = predcube[:, SWIR_cutoff_index:, :, :]
-        groundcube = groundcube[:, SWIR_cutoff_index:, :, :]
+        if only_SWIR:
+            # Only the errors of the latter half are really interesting, so discard the shorter channels
+            predcube = predcube[:, SWIR_cutoff_index:, :, :]
+            groundcube = groundcube[:, SWIR_cutoff_index:, :, :]
 
-        score_SAM = cubeSAM(predcube, groundcube) * 10
+        predcube = simulation.apply_circular_mask(predcube, w, h,
+                                                      radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                      masking_value=1)
+
+        score_SAM = cubeSAM(predcube, groundcube)
         metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
         score_MAPE = metric_MAPE(predcube, groundcube)
 
         score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
-        return score_SAM + score_MAPE + score_spatial_corr
+        return 10 * score_SAM + score_MAPE + 10 * score_spatial_corr
 
     def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
         """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
@@ -460,7 +470,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
             final_pred = dec(enc_pred)
 
-            loss = loss_fn(y, final_pred)
+            if data_shape == 'actual':
+                loss = loss_fn(y, final_pred)
+            else:
+                loss = test_fn(y, final_pred, only_SWIR=False)
             loss.backward()
             optimizer.step()
 
@@ -471,7 +484,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                     dec.layers_linear[-1].weight.data[:, i, :, :] = endmember_tensor
 
             loss_item = loss.item()
-            test_score = test_fn(test_cube, final_pred)
+            test_score = test_fn(test_cube, final_pred, only_SWIR=False)
             test_item = test_score.item()
 
             # Unmixing performance by comparing predicted abundance maps to ground truth ones
@@ -524,7 +537,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
+        if plots is True and (epoch % 500 == 0 or epoch == n_epochs - 1):
 
             if initial_endmembers is None:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy

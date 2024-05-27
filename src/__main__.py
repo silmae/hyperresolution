@@ -92,10 +92,13 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'))  # Ceres
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
-
+    data_shape = 'full_cube'
+    if data_shape == 'NIR_cube':
+        constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
     # # Simulated images of the Didymos system, by Penttilä et al.
     training_data = nn.TrainingData(type='simulated_Didymos',
-                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'))
+                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+                                    data_shape=data_shape)
 
     bands = training_data.l
 
@@ -180,7 +183,8 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=3000,
+             epochs=6000,
+             data_shape=data_shape,
              prints=True,
              plots=True)
 
