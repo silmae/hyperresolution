@@ -47,7 +47,7 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs=None):
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
-def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True):
+def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True, data_shape='actual'):
     """Take a spectral image and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
     the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
     specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
@@ -63,6 +63,12 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         Whether radiances of the input cube are converted to reflectances (to I/F)
     :param smoothing:
         Whether the spectra of the input cube image should go through outlier removal and Gaussian smoothing
+    :param vignetting:
+        Whether a vignette is applied on the SWIR spectral image before it is averaged to get a single spectrum
+    :param datashape: 'actual' or 'full_cube' or 'VNIR_cube'
+        Shape of returned data. 'actual' refers to the real ASPECT configuration with a spectral image cube in VIS and
+        NIR and a point spectrum for SWIR. 'full_cube' means a full length (VIS+NIR+SWIR) image cube, and 'VNIR_cube' means
+        an image cube covering VIS and NIR areas with nothing at SWIR.
     :return: VIS_and_NIR_data, SWIR_data, test_data
         Short wavelength spectral image cube, long wavelength point spectrum, complete spectral image cube with
         wavelength channels covering the whole ASPECT wavelength range
@@ -132,8 +138,12 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
     # plt.plot(test_cube[200, 200, :])
     # plt.plot(test_cube[400, 400, :])
     # plt.show()
-
-    return VIS_and_NIR_data, SWIR_data, test_data
+    if data_shape == 'actual':
+        return VIS_and_NIR_data, SWIR_data, test_data
+    elif data_shape == 'full_cube':
+        return test_data, None, test_data
+    elif data_shape == 'VNIR_cube':
+        return VIS_and_NIR_data, None, VIS_and_NIR_data
 
 
 def cube2ASPECT_data(cube: np.ndarray, vignetting=True):
