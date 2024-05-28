@@ -93,7 +93,7 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
     data_shape = 'full_cube'
-    if data_shape == 'NIR_cube':
+    if data_shape == 'VNIR_cube':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
     # # Simulated images of the Didymos system, by Penttilä et al.
     training_data = nn.TrainingData(type='simulated_Didymos',
@@ -135,14 +135,19 @@ if __name__ == '__main__':
     # Log with crater
     # 'learning_rate': 0.027294442771853274, 'enc_layer_count': 7, 'e_filter_count': 287, 'e_kernel_size': 3, 'kernel_reduction': 4
 
-    endmember_count = 3   # endmember_count = training_data.abundance_count
+    endmember_count = 3  # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
                      'learning_rate': 0.027}
 
-    enc_params = {'enc_layer_count': 9,
-                  'band_count': constants.ASPECT_SWIR_start_channel_index,
+    if data_shape == 'full_cube':
+        band_count = bands
+    else:
+        band_count = constants.ASPECT_SWIR_start_channel_index
+
+    enc_params = {'enc_layer_count': 5,
+                  'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
                   'e_filter_count': 512,
                   'e_kernel_size': 3,
@@ -183,7 +188,7 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=6000,
+             epochs=8000,
              data_shape=data_shape,
              prints=True,
              plots=True)
