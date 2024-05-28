@@ -506,8 +506,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             #                                           'd_kernel_size'], masking_value=1)
 
         if prints:
+            memory_usage = torch.cuda.memory_allocated() * (1024 ** -3)  # Fetch used memory in bytes and convert to GB
             sys.stdout.write('\r')
-            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item}   test: {test_item}")
+            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   test: {test_item:.4f}   (memory usage: {memory_usage:.2f} GB)")
 
         train_losses.append(loss_item)
         test_scores.append(test_item)
@@ -642,6 +643,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                           best_test_epoch_idx=best_test_index,
                                           file_name='figures/nn_history',
                                           log_y=True)
+
+        # Delete some stuff to free up GPU memory
+        del loss, loss_item, test_score, test_item, test_item_unmixing, final_pred, enc_pred, abundances, pred_abundances
+        torch.cuda.empty_cache()
 
     last_loss = train_losses[-1]
     last_test_loss = test_scores[-1]
