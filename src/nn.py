@@ -620,15 +620,27 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_SAM(spectral_angles, epoch)
             plotter.plot_R2(R2_distances, epoch)
 
+            # Find the worst, best and middle pixels from the pred and original images
+            worst_pred = final_pred[:, worst_indices[0], worst_indices[1]]
+            worst_orig = cube_original[:, worst_indices[0], worst_indices[1]]
+            best_pred = final_pred[:, best_indices[0], best_indices[1]]
+            best_orig = cube_original[:, best_indices[0], best_indices[1]]
+            mid_pred = final_pred[:, int(training_data.w / 2), int(training_data.h / 2)]
+            mid_orig = cube_original[:, int(training_data.w / 2), int(training_data.h / 2)]
+
+            normalize_example_spectra = True
+            if normalize_example_spectra:
+                worst_pred = worst_pred / np.max(worst_pred)
+                worst_orig = worst_orig / np.max(worst_orig)
+                best_pred = best_pred / np.max(best_pred)
+                best_orig = best_orig / np.max(best_orig)
+                mid_pred = mid_pred / np.max(mid_pred)
+                mid_orig = mid_orig / np.max(mid_orig)
+
             fig, axs = plt.subplots(nrows=2, ncols=2, layout='constrained')
-            worst_ax = plotter.plot_spectra(cube_original[:, worst_indices[0], worst_indices[1]],
-                                            final_pred[:, worst_indices[0], worst_indices[1]], tag='worst',
-                                            ax=axs[0, 0])
-            best_ax = plotter.plot_spectra(cube_original[:, best_indices[0], best_indices[1]],
-                                           final_pred[:, best_indices[0], best_indices[1]], tag='best', ax=axs[0, 1])
-            mid_ax = plotter.plot_spectra(cube_original[:, int(training_data.w / 2), int(training_data.h / 2)],
-                                          final_pred[:, int(training_data.w / 2), int(training_data.h / 2)],
-                                          tag='middle', ax=axs[1, 0])
+            worst_ax = plotter.plot_spectra(worst_orig, worst_pred, tag='worst', ax=axs[0, 0])
+            best_ax = plotter.plot_spectra(best_orig, best_pred, tag='best', ax=axs[0, 1])
+            mid_ax = plotter.plot_spectra(mid_orig, mid_pred, tag='middle', ax=axs[1, 0])
             axs[1, 1].imshow(cube_original[20, :, :])
             axs[1, 1].scatter(worst_indices[1], worst_indices[0], color='r', marker='o')
             axs[1, 1].scatter(best_indices[1], best_indices[0], color='g', marker='o')
