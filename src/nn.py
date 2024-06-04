@@ -3,6 +3,8 @@ import logging
 import sys
 import math
 import os
+import gc
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -647,6 +649,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # Delete some stuff to free up GPU memory
         del loss, loss_item, test_score, test_item, test_item_unmixing, final_pred, enc_pred, abundances, pred_abundances
         torch.cuda.empty_cache()
+        # Run garbage collection
+        gc.collect()
 
     last_loss = train_losses[-1]
     last_test_loss = test_scores[-1]
