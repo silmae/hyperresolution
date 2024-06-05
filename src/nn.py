@@ -417,7 +417,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         score_MAPE = metric_MAPE(predcube, groundcube)
 
         score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
-        return 10 * score_SAM + score_MAPE + 10 * score_spatial_corr
+        return 100 * score_SAM + score_MAPE + 100 * score_spatial_corr
 
     def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
         """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
@@ -439,7 +439,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     ]
 
     # Defining the optimizer and setting its learning rate
-    optimizer = torch.optim.AdamW(params_to_optimize, lr=common_params['learning_rate'])
+    optimizer = torch.optim.AdamW(params_to_optimize, lr=common_params['learning_rate'], weight_decay=1e-3, amsgrad=True)
 
     # For storing performance results
     train_losses = []
