@@ -310,6 +310,47 @@ def cubeSAM(predcube, groundcube):
     return coserror
 
 
+def cube_SID(x, y, return_map=False):
+    """
+    Computes the spectral information divergence (SID) between two spectral image cubes input as torch tensors.
+
+    Based on the SID function found here: https://pysptools.sourceforge.io/_modules/pysptools/distance/dist.html#SID
+    Modified to work on torch tensors instead of numpy vectors.
+
+    Parameters:
+        x: `torch tensor`
+            Predicted image cube
+
+        y: `torch tensor`
+            Ground truth image cube
+
+        return_map: 'Boolean'
+            Whether to return a map of the SID values, or sum all of them into one value
+
+    Returns: `float`
+            Spectral information divergence between s1 and s2.
+
+    Reference
+        C.-I. Chang, "An Information-Theoretic Approach to SpectralVariability,
+        Similarity, and Discrimination for Hyperspectral Image"
+        IEEE TRANSACTIONS ON INFORMATION THEORY, VOL. 46, NO. 5, AUGUST 2000.
+
+    """
+    epsilon = 1e-10
+    p = (x / torch.sum(x, dim=1)) + epsilon
+    q = (y / torch.sum(y, dim=1)) + epsilon
+
+    Dxy = p * torch.log(p / q)
+    Dyx = q * torch.log(q / p)
+
+    if return_map:
+        SID = torch.sum(Dxy + Dyx, dim=1)
+    else:
+        SID = torch.sum(Dxy + Dyx)
+
+    return SID
+
+
 def tensor_image_corrcoeff(y_true, y_pred):
     """Calculate mean image and flatten to make compatible with torch Pearson correlation coefficient"""
     y_true_mean = torch.mean(y_true, dim=1)
@@ -412,12 +453,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                                       radius=constants.ASPECT_SWIR_equivalent_radius,
                                                       masking_value=1)
 
-        score_SAM = cubeSAM(predcube, groundcube)
-        metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
-        score_MAPE = metric_MAPE(predcube, groundcube)
+        SID = cube_SID(predcube, groundcube)  # spectral information divergence
 
-        score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
-        return 100 * score_SAM + score_MAPE + 100 * score_spatial_corr
+        # score_SAM = cubeSAM(predcube, groundcube)
+        # metric_MAPE = torchmetrics.MeanAbsolutePercentageError().to(device)
+        # score_MAPE = metric_MAPE(predcube, groundcube)
+        #
+        # score_spatial_corr = 1 - tensor_image_corrcoeff(groundcube, predcube)
+        # return 100 * score_SAM + score_MAPE + 100 * score_spatial_corr
+        return SID
 
     def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
         """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
