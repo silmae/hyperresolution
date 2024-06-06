@@ -127,7 +127,8 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         cube = smoothed_cube
 
     VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube, vignetting)
-
+    minimi = np.min(np.nan_to_num(VIS_and_NIR_data))
+    minimi = np.min(SWIR_data)
     # Sanity check plots
     # plt.figure()
     # plt.imshow(cube_short[:, :, 20])
@@ -163,12 +164,13 @@ def cube2ASPECT_data(cube: np.ndarray, vignetting=True):
     # Crop the image to aspect ratio where one side is the larger of NIR FOV and one side is SWIR FOV
     aspect_ratio = max(constants.ASPECT_NIR_FOV) / constants.ASPECT_SWIR_FOV
     cube = crop2aspect_ratio(cube, aspect_ratio)
-
     # Interpolate each channel to have more pixels: width from NIR width, height from what the height would be
     height = constants.ASPECT_SWIR_equivalent_radius * 2  # height should be diameter of FOV, so 2 * radius
     width = constants.ASPECT_NIR_channel_shape[1]
+    minimi = np.min(np.nan_to_num(cube))
 
     cube = resize_image_cube(cube, height, width)
+
     cube = apply_circular_mask(cube, height, width, masking_value=float('nan'))
 
     test_cube = crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[0] /
@@ -293,8 +295,10 @@ def apply_circular_mask(data: np.ndarray or torch.Tensor, h: int, w: int, center
 def resize_image_cube(cube, height, width):
     """Interpolate spectra image cube to have spatial dimensions given as inputs (no spectral interpolation)"""
     resized = np.zeros((height, width, cube.shape[2]))
+
     for channel in range(cube.shape[2]):
-        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_CUBIC)
+        resized[:, :, channel] = cv.resize(cube[:, :, channel], (width, height), interpolation=cv.INTER_LINEAR)
+
     return resized
 
 
