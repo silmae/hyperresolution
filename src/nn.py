@@ -554,7 +554,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if prints:
             memory_usage = torch.cuda.memory_allocated() * (1024 ** -3)  # Fetch used memory in bytes and convert to GB
             sys.stdout.write('\r')
-            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   test: {test_item:.4f}   (memory usage: {memory_usage:.2f} GB)")
+            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   test: {test_item_unmixing:.4f}   (GPU memory usage: {memory_usage:.2f} GB)")
 
         train_losses.append(loss_item)
         test_scores.append(test_item)
@@ -584,11 +584,11 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # torch.save(dec, f"./{dec_save_name}")
 
         # every n:th epoch plot endmember spectra and false color images from longer end
-        if plots is True and (epoch % 500 == 0 or epoch == n_epochs - 1):
-
-            if initial_endmembers is None:  # Plot endmember spectra if they are not given as parameters
+        if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
+            plot_endmembers = True
+            if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
-                endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
+                endmembers = dec.layers_nonlinear[-2].weight.data.detach().cpu().numpy()
                 # Retrieve endmember spectra by summing the weights of each kernel
                 # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
                 endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
