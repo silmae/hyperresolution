@@ -20,6 +20,7 @@ import cv2 as cv
 
 from src import utils
 from src import constants
+from src import file_handling
 
 # PyPlot settings to be used in all plots
 plt.rcParams.update({'font.size': 12})
@@ -342,4 +343,30 @@ def illustrate_ASPECT_FOV(background_image=False):
     ax.yaxis.set_ticks([])
     plt.show()
 
+
+def illustrate_mixing_nonlinearity():
+    pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
+    px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
+    px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
+    px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
+    px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
+
+    plt.figure()
+    plt.plot(wls, pyroxene, label='Pyroxene')
+    plt.plot(wls, olivine, label='Olivine')
+    # plt.plot(wls, px10)
+    # plt.plot(wls, px25)
+    plt.plot(wls, px50, label='Laboratory mixture')
+    px_factor = 0.50
+
+    plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)), label='Logarithmic mixture (simulated)')
+    plt.plot(wls, pyroxene * px_factor + olivine * (1 - px_factor), label='Linear mixture (simulated)')
+    # plt.plot(wls, px75)
+    # plt.plot(wls, px90)
+    plt.legend()
+    plt.xlabel('Wavelengths [µm]')
+    plt.ylabel('Reflectance')
+    plt.show()
 
