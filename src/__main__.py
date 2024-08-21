@@ -38,32 +38,10 @@ if __name__ == '__main__':
 
     ############# SANDBOX ###############
 
-    # # # Plot to illustrate how the FOVs of the ASPECT modules overlap each other
-    # # plotter.illustrate_ASPECT_FOV()
-    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
-    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
-    # px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
-    # px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
-    # px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
-    # px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
-    # px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
-    #
-    # plt.figure()
-    # plt.plot(wls, pyroxene, label='Pyroxene')
-    # plt.plot(wls, olivine, label='Olivine')
-    # # plt.plot(wls, px10)
-    # # plt.plot(wls, px25)
-    # plt.plot(wls, px50, label='Laboratory mixture')
-    # px_factor = 0.50
-    #
-    # plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)), label='Linear mixture (simulated)')
-    # # plt.plot(wls, px75)
-    # # plt.plot(wls, px90)
-    # plt.legend()
-    # plt.xlabel('Wavelengths [µm]')
-    # plt.ylabel('Reflectance')
-    # plt.show()
-
+    # # Plot to illustrate how the FOVs of the ASPECT modules overlap each other
+    # plotter.illustrate_ASPECT_FOV()
+    # # Plot to illustrate nonlinearity of spectral mixing
+    # plotter.illustrate_mixing_nonlinearity()
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -83,60 +61,26 @@ if __name__ == '__main__':
 
     ############################
 
-    # # Vesta data, the primary data
+    # # Vesta data from NASA Dawn VIR
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_VIS_1B_1_366641356_1.cub'))  # Vesta, HAMO, Marcia-Calpurnia-Minucia
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_366636556_1.cub'))  # Vesta, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_367917915_1.cub'))  # Vesta, survey
 
-    # # ISIS images of Ceres: test generalizability with some of these after optimizing network with Vesta data
+    # # Same as above, from Ceres
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'))  # Ceres
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
+
     data_shape = 'full_cube'
     if data_shape == 'VNIR_cube':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
-    # # Simulated images of the Didymos system, by Penttilä et al.
+
+    # Simulated images of the Didymos system, by Penttilä et al.
     training_data = nn.TrainingData(type='simulated_Didymos',
                                     filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape)
 
     bands = training_data.l
-
-    # Optimization result for Vesta data including VIS, with 12 endmembers: this architecture works great for
-    # reconstruction of Vesta images, but the endmembers are not realistic
-    # parameters: {'learning_rate': 0.00017412188150195052, 'enc_layer_count': 1, 'e_filter_count': 501,
-    #              'e_kernel_size': 6, 'kernel_reduction': 3, 'd_kernel_size': 9}
-
-    # Optimization result for 5 free endmembers
-    # learning_rate
-    # ': 0.0004503804275361948, '
-    # enc_layer_count
-    # ': 4, '
-    # e_filter_count
-    # ': 161, '
-    # e_kernel_size
-    # ': 6, '
-    # kernel_reduction
-    # ': 0, '
-    # d_kernel_size
-    # ': 5
-
-    # Optimization result for fixed endmembers, for 50-50 mix of ol and px
-    # parameters: {'learning_rate': 0.033283047238564525,
-    #              'enc_layer_count': 6,
-    #              'e_filter_count': 376,
-    #              'e_kernel_size': 4,
-    #              'kernel_reduction': 1}
-
-    # Results from log optimization:
-    # {'learning_rate': 0.06002294589783957, 'enc_layer_count': 9, 'e_filter_count': 165, 'e_kernel_size': 6,
-     # 'kernel_reduction': 1}
-
-    # Log with crater
-    # 'learning_rate': 0.027294442771853274, 'enc_layer_count': 7, 'e_filter_count': 287, 'e_kernel_size': 3, 'kernel_reduction': 4
-
-    # SID in loss, full cube, optimized for unmixing
-    # 'learning_rate': 0.00024766452993176517, 'enc_layer_count': 7, 'e_filter_count': 482, 'e_kernel_size': 9, 'kernel_reduction': 1
 
     endmember_count = 3  # endmember_count = training_data.abundance_count
 
@@ -168,22 +112,16 @@ if __name__ == '__main__':
     pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
     olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
+    # Interpolate the endmember spectra to ASPECT wavelengths
     pyroxene, new_wls, _ = simulation.ASPECT_resampling(pyroxene, wls)
     olivine, new_wls, _ = simulation.ASPECT_resampling(olivine, wls)
-
-    # plt.figure()
-    # plt.plot(new_wls, pyroxene, label='Px')
-    # plt.plot(new_wls, olivine, label='Ol')
-    # plt.show()
 
     # Flat spectra to adjust lightness and darkness of pixels
     dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
     # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
 
     # Then mixing of the signals works better if use logarithms of the endmembers and a logarithm of the input cube
-    # endmembers = [didymos_reflectance, dark_em] #, light_em]
     endmembers = [np.log(pyroxene), np.log(olivine), np.log(dark_em)]  # , light_em]
-    # endmembers = [pyroxene, olivine, dark_em]
 
     # Build and train a neural network
     nn.train(training_data,
