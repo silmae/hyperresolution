@@ -205,6 +205,44 @@ def denoise_array(array: np.ndarray, sigma: float, x: np.ndarray or None = None,
 
     return array_denoised - mn
 
+
+def reflectance2SSA(reflectance, mu=1, mu0=1):
+    """Convert spectral reflectance vector or cube to single-scattering albedo, for ndarray or torch tensor
+
+    Equation from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using Hapke Model and Convolutional
+    Neural Network", Rasti et al. (2022).
+    """
+    if type(reflectance) == np.ndarray:
+        ssa = 1 \
+              - (
+                (((mu + mu0)**2 * reflectance**2 + (1 + 4 * mu * mu0 * reflectance)*(1 - reflectance))**0.5 - (mu + mu0) * reflectance)
+                / (1 + 4 * mu * mu0 * reflectance)
+                 )**2
+
+    elif type(reflectance) == Tensor:  # Here the same operations should probably work for arrays and tensors, right? Unless the powers don't
+        ssa = 1 \
+                - (
+                    (((mu + mu0) ** 2 * reflectance ** 2 + (1 + 4 * mu * mu0 * reflectance) * (1 - reflectance)) ** 0.5 - (mu + mu0) * reflectance)
+                    / (1 + 4 * mu * mu0 * reflectance)
+                ) ** 2
+
+    return ssa
+
+
+def SSA2reflectance(ssa, mu=1, mu0=1):
+    """Convert single scattering albedo vector or cube to spectral reflectance, for ndarray or torch tensor
+
+    Equation from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using Hapke Model and Convolutional
+    Neural Network", Rasti et al. (2022).
+    """
+    if type(ssa) == np.ndarray:
+        reflectance = ssa / ((1 + 2 * mu * np.sqrt((1 - ssa))) * (1 + 2 * mu0 * np.sqrt((1 - ssa))))
+    elif type(ssa) == Tensor:
+        reflectance = ssa / ((1 + 2*mu * torch.sqrt((1 - ssa))) * (1 + 2*mu0 * torch.sqrt((1 - ssa))))
+
+    return reflectance
+
+
 ## The rest are currently not used
 # def normalise_array(array: np.ndarray,
 #                     axis: int or None = None,
