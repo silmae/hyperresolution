@@ -120,8 +120,12 @@ if __name__ == '__main__':
     dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
     # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
 
-    # Then mixing of the signals works better if use logarithms of the endmembers and a logarithm of the input cube
-    endmembers = [np.log(pyroxene), np.log(olivine), np.log(dark_em)]  # , light_em]
+    # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
+    pyroxene = utils.reflectance2SSA(pyroxene)
+    olivine = utils.reflectance2SSA(olivine)
+    dark_em = utils.reflectance2SSA(dark_em)
+
+    endmembers = [pyroxene, olivine, dark_em]  # , light_em]
 
     # Build and train a neural network
     nn.train(training_data,
