@@ -182,15 +182,15 @@ class Decoder(nn.Module):
             # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
             # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
 
-        # The mixing uses logarithms of the endmember signals, so convert output cube back with exponent function
-        x_linear = torch.exp(x)
+        # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
+        x_linear = utils.SSA2reflectance(x)
 
-        x = torch.clone(x_linear)
-        for layer in self.layers_nonlinear:
-            x = self.activation_nonlinear(layer(x))
-        x_nonlinear = x
+        # x = torch.clone(x_linear)
+        # for layer in self.layers_nonlinear:
+        #     x = self.activation_nonlinear(layer(x))
+        # x_nonlinear = x
 
-        return x_linear + x_nonlinear
+        return x_linear# + x_nonlinear
 
 
 class TrainingData(Dataset):
