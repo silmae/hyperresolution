@@ -354,15 +354,18 @@ def illustrate_mixing_nonlinearity():
     px90, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px90.csv'))
 
     plt.figure()
-    plt.plot(wls, pyroxene, label='Pyroxene')
-    plt.plot(wls, olivine, label='Olivine')
-    # plt.plot(wls, px10)
-    # plt.plot(wls, px25)
+    plt.plot(wls, pyroxene, label='Pyroxene', linestyle='--')
+    plt.plot(wls, olivine, label='Olivine', linestyle='--')
+    # plt.plot(wls, px10, label='Laboratory mixture')
+    # plt.plot(wls, px25, label='Laboratory mixture')
     plt.plot(wls, px50, label='Laboratory mixture')
+    # plt.plot(wls, px90, label='Laboratory mixture')
+
     px_factor = 0.50
 
     plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)), label='Logarithmic mixture (simulated)')
     plt.plot(wls, pyroxene * px_factor + olivine * (1 - px_factor), label='Linear mixture (simulated)')
+    plt.plot(wls, (utils.SSA2reflectance(utils.reflectance2SSA(pyroxene) * px_factor + utils.reflectance2SSA(olivine) * (1 - px_factor))), label='Hapke mixture (simulated)')
     # plt.plot(wls, px75)
     # plt.plot(wls, px90)
     plt.legend()
