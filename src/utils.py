@@ -215,14 +215,14 @@ def reflectance2SSA(reflectance, mu=1, mu0=1):
     if type(reflectance) == np.ndarray:
         ssa = 1 \
               - (
-                (((mu + mu0)**2 * reflectance**2 + (1 + 4 * mu * mu0 * reflectance)*(1 - reflectance))**0.5 - (mu + mu0) * reflectance)
+                (np.sqrt((mu + mu0)**2 * reflectance**2 + (1 + 4 * mu * mu0 * reflectance)*(1 - reflectance))- (mu + mu0) * reflectance)
                 / (1 + 4 * mu * mu0 * reflectance)
                  )**2
 
     elif type(reflectance) == Tensor:  # Here the same operations should probably work for arrays and tensors, right? Unless the powers don't
         ssa = 1 \
                 - (
-                    (((mu + mu0) ** 2 * reflectance ** 2 + (1 + 4 * mu * mu0 * reflectance) * (1 - reflectance)) ** 0.5 - (mu + mu0) * reflectance)
+                    (torch.sqrt((mu + mu0) ** 2 * reflectance ** 2 + (1 + 4 * mu * mu0 * reflectance) * (1 - reflectance)) - (mu + mu0) * reflectance)
                     / (1 + 4 * mu * mu0 * reflectance)
                 ) ** 2
 
