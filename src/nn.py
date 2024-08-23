@@ -133,8 +133,8 @@ class Decoder(nn.Module):
         self.endmember_count = endmember_count
         self.kernel_size = d_kernel_size
         self.layers_linear = nn.ModuleList()
-        self.layers_nonlinear = nn.ModuleList()
-        self.activation_nonlinear = F.leaky_relu_
+        # self.layers_nonlinear = nn.ModuleList()
+        # self.activation_nonlinear = F.leaky_relu_
 
         self.layers_linear.append(
             nn.Conv2d(in_channels=self.endmember_count,
@@ -145,23 +145,14 @@ class Decoder(nn.Module):
                       bias=False)
         )
 
-        self.layers_nonlinear.append(
-            nn.Conv2d(in_channels=self.band_count,
-                      out_channels=self.band_count,
-                      kernel_size=self.kernel_size,
-                      padding='same',
-                      stride=1,
-                      bias=False)
-        )
-
-        self.layers_nonlinear.append(
-            nn.Conv2d(in_channels=self.band_count,
-                      out_channels=self.band_count,
-                      kernel_size=self.kernel_size,
-                      padding='same',
-                      stride=1,
-                      bias=False)
-        )
+        # self.layers_nonlinear.append(
+        #     nn.Conv2d(in_channels=self.band_count,
+        #               out_channels=self.band_count,
+        #               kernel_size=self.kernel_size,
+        #               padding='same',
+        #               stride=1,
+        #               bias=False)
+        # )
 
     def forward(self, x):
 
@@ -190,7 +181,7 @@ class Decoder(nn.Module):
         #     x = self.activation_nonlinear(layer(x))
         # x_nonlinear = x
 
-        return x_linear# + x_nonlinear
+        return x_linear #+ x_nonlinear
 
 
 class TrainingData(Dataset):
@@ -585,10 +576,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         # every n:th epoch plot endmember spectra and false color images from longer end
         if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
-            plot_endmembers = True
+            plot_endmembers = False
             if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
-                endmembers = dec.layers_nonlinear[-2].weight.data.detach().cpu().numpy()
+                endmembers = dec.layers_nonlinear[-1].weight.data.detach().cpu().numpy()
                 # Retrieve endmember spectra by summing the weights of each kernel
                 # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
                 endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
@@ -698,7 +689,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plotter.plot_nn_train_history(train_loss=train_losses,
                                           best_epoch_idx=best_index,
                                           test_scores=test_scores_unmixing,
-                                          best_test_epoch_idx=best_test_index,
+                                          best_test_epoch_idx=best_unmixing_test_index,
                                           file_name='figures/nn_history',
                                           log_y=True)
 
