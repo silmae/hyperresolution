@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 import logging
 import sys
@@ -173,8 +174,10 @@ class Decoder(nn.Module):
             # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
             # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
 
-        # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
-        x_linear = utils.SSA2reflectance(x)
+        # # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
+        # x_linear = utils.SSA2reflectance(x)
+
+        x_linear = x
 
         # x = torch.clone(x_linear)
         # for layer in self.layers_nonlinear:
@@ -500,6 +503,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         dec.train(True)
 
         for x, y in data_loader:
+            x, y = utils.reflectance2SSA(x), utils.reflectance2SSA(y)
             x, y = x.to(device), y.to(device)  # Move data to GPU memory
             optimizer.zero_grad()  # Reset gradients
 
@@ -576,6 +580,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         # every n:th epoch plot endmember spectra and false color images from longer end
         if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
+            final_pred = utils.SSA2reflectance(final_pred)
             plot_endmembers = False
             if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
@@ -589,12 +594,19 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
-            plotter.plot_abundance_maps(abundances, epoch)
+            # plotter.plot_abundance_maps(abundances, epoch)
 
             # Plot RMSE error maps of abundance predictions
             pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
             abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
-            plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
+            # plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
+            gt = copy.deepcopy(training_data.gt_abundances)
+            for i in range(2):
+                gt[i] = simulation.apply_circular_mask(np.expand_dims(gt[i] + 1e-6, axis=-1), h=w, w=h,
+                                                       radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                       masking_value=np.nan)
+            plotter.plot_abundance_maps_with_gt(pred_abundances, gt, abundance_error_maps, epoch)
+            del gt
 
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
@@ -653,7 +665,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                         worst_indices = (i, j)
 
             plotter.plot_SAM(spectral_angles, epoch)
-            plotter.plot_R2(R2_distances, epoch)
+            # plotter.plot_R2(R2_distances, epoch)
 
             # Find the worst, best and middle pixels from the pred and original images
             worst_pred = final_pred[:, worst_indices[0], worst_indices[1]]
