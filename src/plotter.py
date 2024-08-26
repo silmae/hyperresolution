@@ -21,6 +21,7 @@ import cv2 as cv
 from src import utils
 from src import constants
 from src import file_handling
+from src import simulation
 
 # PyPlot settings to be used in all plots
 plt.rcParams.update({'font.size': 12})
@@ -296,6 +297,56 @@ def plot_abundance_maps(abundances, epoch, log_scale=False):
     logging.info(f"Saving the image to '{path}'.")
     plt.savefig(path, dpi=300)
 
+def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
+    """Plot predicted abundance maps together with ground truth maps and RMSE of abundance estimations"""
+
+    n_row, n_col = 2, 3
+    fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
+    # axs = axs.flatten()
+    # data_name = ['Ground truth', 'Predicted', 'RMSE']
+    # for i in range(3):
+    im = axs[0, 0].imshow(gt[0], vmin=0, vmax=1)
+    axs[0, 0].title.set_text(f'Ground truth, pyroxene')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+    im = axs[0, 1].imshow(abundances[0], vmin=0, vmax=1)
+    axs[0, 1].title.set_text(f'Predicted, pyroxene')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+    im = axs[0, 2].imshow(RMSE_maps[0, :, :], vmin=0, vmax=1)
+    axs[0, 2].title.set_text(f'RMSE, pyroxene')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+
+    im = axs[1, 0].imshow(gt[1], vmin=0, vmax=1)
+    axs[1, 0].title.set_text(f'Ground truth, olivine')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+    im = axs[1, 1].imshow(abundances[1], vmin=0, vmax=1)
+    axs[1, 1].title.set_text(f'Predicted, olivine')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+    im = axs[1, 2].imshow(RMSE_maps[1, :, :], vmin=0, vmax=1)
+    axs[1, 2].title.set_text(f'RMSE, olivine')
+    im.axes.xaxis.set_ticks([])
+    im.axes.yaxis.set_ticks([])
+
+    # for i in range(2):
+    #     im = axs[1, i].imshow(gt[i], vmin=0, vmax=1)
+    #     axs[1, i].title.set_text(f'GT, {material[i]}')
+    #     im.axes.xaxis.set_ticks([])
+    #     im.axes.yaxis.set_ticks([])
+    # for i in range(2):
+    #     im = axs[2, i].imshow(RMSE_maps[i, :, :], vmin=0, vmax=1)
+    #     axs[2, i].title.set_text(f'RMSE, {material[i]}')
+    #     im.axes.xaxis.set_ticks([])
+    #     im.axes.yaxis.set_ticks([])
+    fig.colorbar(im, ax=axs.ravel().tolist())
+    folder = './figures/'
+    image_name = f"abundance_maps_with_gt_e{epoch}.{image_type}"
+    path = Path(folder, image_name)
+    logging.info(f"Saving the image to '{path}'.")
+    plt.savefig(path, dpi=300)
 
 def illustrate_ASPECT_FOV(background_image=False):
     image_path = './datasets/Vesta_FC21B0014724_11354131448F1H.png' #Vesta_FC21B0003982_11223231340F7E.png'):
