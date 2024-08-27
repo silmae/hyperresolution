@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     bands = training_data.l
 
-    endmember_count = 3  # endmember_count = training_data.abundance_count
+    endmember_count = 2  # endmember_count = training_data.abundance_count
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
@@ -93,11 +93,11 @@ if __name__ == '__main__':
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 7,
+    enc_params = {'enc_layer_count': 4,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 512,
-                  'e_kernel_size': 9,
+                  'e_filter_count': 256,
+                  'e_kernel_size': 3,
                   'kernel_reduction': 1}
 
     dec_params = {'band_count': common_params['bands'],
@@ -117,15 +117,15 @@ if __name__ == '__main__':
     olivine, new_wls, _ = simulation.ASPECT_resampling(olivine, wls)
 
     # Flat spectra to adjust lightness and darkness of pixels
-    dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
+    # dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
     # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
 
     # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
     pyroxene = utils.reflectance2SSA(pyroxene)
     olivine = utils.reflectance2SSA(olivine)
-    dark_em = utils.reflectance2SSA(dark_em)
+    # dark_em = utils.reflectance2SSA(dark_em)
 
-    endmembers = [pyroxene, olivine, dark_em]  # , light_em]
+    endmembers = [pyroxene, olivine]#, dark_em]  # , light_em]
 
     # Build and train a neural network
     nn.train(training_data,

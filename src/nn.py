@@ -202,7 +202,7 @@ class TrainingData(Dataset):
             wavelengths = wavelengths[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
-            h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px25')
+            h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px50')
             # Transpose the abundance maps to get matching dimensions with network predictions
             for index, abundance in enumerate(gt_abundances):
                 gt_abundances[index] = np.transpose(abundance)
@@ -254,9 +254,9 @@ class TrainingData(Dataset):
 
 
 def init_network(enc_params, dec_params, common_params, endmembers=None):
-    enc = Encoder(enc_layer_count=2,
+    enc = Encoder(enc_layer_count=enc_params['enc_layer_count'],
                   band_count=enc_params['band_count'],
-                  endmember_count=common_params['endmember_count'],
+                  endmember_count=common_params['endmember_count'] + 1,  # dark endmember not given, brightness evaluated as abundance and then used to scale the prediction
                   e_filter_count=enc_params['e_filter_count'],
                   e_kernel_size=enc_params['e_kernel_size'],
                   kernel_reduction=enc_params['kernel_reduction'], )
@@ -509,8 +509,13 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
-            final_pred = dec(enc_pred)
-
+            # brightness_map = enc_pred[:, -1, :, :]
+            # dec_pred = dec(enc_pred[:, :-1, :, :])
+            abundances, brightness_map = torch.split(enc_pred, split_size_or_sections=[2, 1], dim=1)
+            dec_pred = dec(abundances + 1e-10)
+            dec_pred = torch.nan_to_num(dec_pred)  # ... and again
+            brightness_map = torch.abs(1 - brightness_map) + 1e-10  # sum-to-one constraint means that brightness map is actually a darkness map: has high values where there are no spectral signals
+            final_pred = torch.multiply(dec_pred, brightness_map)
             if data_shape == 'actual':
                 loss = loss_fn(y, final_pred)
             else:
@@ -589,6 +594,19 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                 # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
                 endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
                 plotter.plot_endmembers(endmembers, epoch)
+
+            # Plot brightness map
+            br_map = simulation.apply_circular_mask(brightness_map, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                   masking_value=torch.nan)
+            br_map = np.squeeze(br_map.cpu().detach().numpy())
+            fig = plt.figure()
+            plt.imshow(br_map)
+            folder = './figures/'
+            image_name = f"brightness_map_e{epoch}.png"
+            path = Path(folder, image_name)
+            logging.info(f"Saving the image to '{path}'.")
+            plt.savefig(path, dpi=300)
+            plt.close(fig)
 
             # Get abundance maps from encoder predictions and plot them as images
             abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
