@@ -212,12 +212,13 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         data_reflectance, data_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{spectrum}.csv'))
 
         # Ground truth abundance maps using the normalized frame and the pyroxene percentage
-        px_abundance = np.copy(frame) * float(spectrum[2:]) / 100
-        ol_abundance = np.copy(frame) * (100 - float(spectrum[2:])) / 100
-        # fig, axs = plt.subplots(1, 2)
-        # axs[0].imshow(px_abundance)
-        # axs[1].imshow(ol_abundance)
-        # plt.show()
+        perkele = (np.copy(frame) > 1e-20) * 1
+        px_abundance = (np.copy(frame) > 1e-20) * float(spectrum[2:]) / 100
+        ol_abundance = (np.copy(frame) > 1e-20) * (100 - float(spectrum[2:])) / 100
+        fig, axs = plt.subplots(1, 2)
+        axs[0].imshow(px_abundance)
+        axs[1].imshow(ol_abundance)
+        plt.show()
         gt_abundances = [px_abundance, ol_abundance]
 
     # Instead of treating the cubes properly and trying to join them:
@@ -257,8 +258,8 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         norm_abundance_masked = np.copy(gt_abundances[0])
         norm_abundance_masked = (norm_abundance_masked * mask) / np.max(norm_abundance_masked * mask)
         # Calculate crater abundance maps
-        px_abundance_masked = norm_abundance_masked * float(crater[2:]) / 100
-        ol_abundance_masked = norm_abundance_masked * (100 - float(crater[2:])) / 100
+        px_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * float(crater[2:]) / 100
+        ol_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * (100 - float(crater[2:])) / 100
 
         # Set the crater area to zero
         for i in range(2):
@@ -268,10 +269,10 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         gt_abundances[0] = gt_abundances[0] + px_abundance_masked
         gt_abundances[1] = gt_abundances[1] + ol_abundance_masked
 
-        # fig, axs = plt.subplots(1, 2)
-        # axs[0].imshow(gt_abundances[0])
-        # axs[1].imshow(gt_abundances[1])
-        # plt.show()
+        fig, axs = plt.subplots(1, 2)
+        axs[0].imshow(gt_abundances[0])
+        axs[1].imshow(gt_abundances[1])
+        plt.show()
 
     # Add a small epsilon value to not get 0 at the areas not occupied by the asteroid - this is done avoid division by
     # zero later
