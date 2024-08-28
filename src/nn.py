@@ -174,10 +174,8 @@ class Decoder(nn.Module):
             # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
             # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
 
-        # # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
-        # x_linear = utils.SSA2reflectance(x)
-
-        x_linear = x
+        # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
+        x_linear = utils.SSA2reflectance(x)
 
         # x = torch.clone(x_linear)
         # for layer in self.layers_nonlinear:
@@ -503,7 +501,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         dec.train(True)
 
         for x, y in data_loader:
-            x, y = utils.reflectance2SSA(x), utils.reflectance2SSA(y)
+            # x, y = utils.reflectance2SSA(x), utils.reflectance2SSA(y)
             x, y = x.to(device), y.to(device)  # Move data to GPU memory
             optimizer.zero_grad()  # Reset gradients
 
@@ -585,7 +583,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
         # every n:th epoch plot endmember spectra and false color images from longer end
         if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
-            final_pred = utils.SSA2reflectance(final_pred)
+            # final_pred = utils.SSA2reflectance(final_pred)
             plot_endmembers = False
             if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
