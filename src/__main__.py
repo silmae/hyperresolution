@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     bands = training_data.l
 
-    endmember_count = 2  # endmember_count = training_data.abundance_count
+    endmember_count = 2
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
@@ -116,16 +116,11 @@ if __name__ == '__main__':
     pyroxene, new_wls, _ = simulation.ASPECT_resampling(pyroxene, wls)
     olivine, new_wls, _ = simulation.ASPECT_resampling(olivine, wls)
 
-    # Flat spectra to adjust lightness and darkness of pixels
-    # dark_em = np.ones(shape=didymos_reflectance.shape) * 0.001
-    # light_em = np.ones(shape=didymos_reflectance.shape) * 0.50
-
     # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
     pyroxene = utils.reflectance2SSA(pyroxene)
     olivine = utils.reflectance2SSA(olivine)
-    # dark_em = utils.reflectance2SSA(dark_em)
 
-    endmembers = [pyroxene, olivine]#, dark_em]  # , light_em]
+    endmembers = [pyroxene, olivine]
 
     # Build and train a neural network
     nn.train(training_data,

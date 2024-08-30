@@ -28,6 +28,8 @@ from src import simulation
 
 torch.autograd.set_detect_anomaly(True)  # this will provide traceback if stuff turns into NaN
 
+epsilon = 1e-10  # An epsilon value is added in some places, mostly so that backprop will not break
+
 
 def SAM(s1, s2):
     """
@@ -133,11 +135,9 @@ class Decoder(nn.Module):
         self.band_count = band_count
         self.endmember_count = endmember_count
         self.kernel_size = d_kernel_size
-        self.layers_linear = nn.ModuleList()
-        # self.layers_nonlinear = nn.ModuleList()
-        # self.activation_nonlinear = F.leaky_relu_
+        self.layers = nn.ModuleList()
 
-        self.layers_linear.append(
+        self.layers.append(
             nn.Conv2d(in_channels=self.endmember_count,
                       out_channels=self.band_count,
                       kernel_size=self.kernel_size,
@@ -146,20 +146,12 @@ class Decoder(nn.Module):
                       bias=False)
         )
 
-        # self.layers_nonlinear.append(
-        #     nn.Conv2d(in_channels=self.band_count,
-        #               out_channels=self.band_count,
-        #               kernel_size=self.kernel_size,
-        #               padding='same',
-        #               stride=1,
-        #               bias=False)
-        # )
-
     def forward(self, x):
 
-        for layer in self.layers_linear:
+        for layer in self.layers:
             # Run input data through layer
             x = layer(x)
+
             # # Force the weights to be positive, these will be the endmember spectra:
             # layer.weight.data = layer.weight.data.clamp(min=0)
             # # The endmembers are very noisy: calculate derivative and subtract it, then replace the weights with result
@@ -167,22 +159,10 @@ class Decoder(nn.Module):
             # layer.weight.data[1:, :, :, :] = layer.weight.data[1:, :, :,
             #                                  :] - variation * 0.001  # Not a good idea to subtract all of the variation, adjust the percentage
 
-            # # Set weights of the first decoder kernel to match the value used for masks
-            # orig_kernel = layer.weight.data[:, 0, :, :]
-            # mask_endmember = np.zeros(orig_kernel.shape)
-            # mid_index = int((orig_kernel.shape[1] - 1) / 2)
-            # mask_endmember[:, mid_index, mid_index] = 0.5  # masking value
-            # layer.weight.data[:, 0, :, :] = torch.tensor(mask_endmember)
-
         # The mixing uses single-scattering albedos for endmember signals, so convert output cube back to reflectance
-        x_linear = utils.SSA2reflectance(x)
+        x = utils.SSA2reflectance(x)
 
-        # x = torch.clone(x_linear)
-        # for layer in self.layers_nonlinear:
-        #     x = self.activation_nonlinear(layer(x))
-        # x_nonlinear = x
-
-        return x_linear #+ x_nonlinear
+        return x
 
 
 class TrainingData(Dataset):
@@ -274,7 +254,7 @@ def init_network(enc_params, dec_params, common_params, endmembers=None):
     # If endmember spectra are given as parameters, set them as decoder kernel weights
     if endmembers is not None:
         for i, endmember in enumerate(endmembers):
-            dec.layers_linear[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
+            dec.layers[-1].weight.data[:, i, 0, 0] = torch.tensor(endmember)
     # plt.figure()
     # plt.plot(dec.layers[-1].weight.data[:, 0, 0, 0].detach().cpu().numpy())
     # plt.plot(dec.layers[-1].weight.data[:, 1, 0, 0].detach().cpu().numpy())
@@ -328,7 +308,6 @@ def cube_SID(x, y, return_map=False):
         IEEE TRANSACTIONS ON INFORMATION THEORY, VOL. 46, NO. 5, AUGUST 2000.
 
     """
-    epsilon = 1e-10
     p = (x / torch.sum(x, dim=1)) + epsilon
     q = (y / torch.sum(y, dim=1)) + epsilon
 
@@ -501,21 +480,18 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         dec.train(True)
 
         for x, y in data_loader:
-            # x, y = utils.reflectance2SSA(x), utils.reflectance2SSA(y)
             x, y = x.to(device), y.to(device)  # Move data to GPU memory
             optimizer.zero_grad()  # Reset gradients
 
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
-            # brightness_map = enc_pred[:, -1, :, :]
-            # dec_pred = dec(enc_pred[:, :-1, :, :])
             abundances, brightness_map = torch.split(enc_pred, split_size_or_sections=[2, 1], dim=1)
-            dec_pred = dec(abundances + 1e-10)
+            dec_pred = dec(abundances + epsilon)
             dec_pred = torch.nan_to_num(dec_pred)  # ... and again
-            brightness_map = torch.abs(1 - brightness_map) + 1e-10  # sum-to-one constraint means that brightness map is actually a darkness map: has high values where there are no spectral signals
+            brightness_map = torch.abs(1 - brightness_map) + epsilon  # sum-to-one constraint means that brightness map is actually a darkness map: has high values where there are no spectral signals
             final_pred = torch.multiply(dec_pred, brightness_map)
             if data_shape == 'actual':
-                loss = loss_fn(y, final_pred)
+                loss = loss_fn(y, final_pred)  # If the data is shaped like ASPECT data, do a different loss calculation
             else:
                 loss = test_fn(y, final_pred, only_SWIR=False)
             loss.backward()
@@ -525,7 +501,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             if initial_endmembers is not None:
                 for i, endmember in enumerate(initial_endmembers):
                     endmember_tensor = torch.tensor(np.expand_dims(endmember, axis=(1, 2)))
-                    dec.layers_linear[-1].weight.data[:, i, :, :] = endmember_tensor
+                    dec.layers[-1].weight.data[:, i, :, :] = endmember_tensor
 
             loss_item = loss.item()
             test_score = test_fn(test_cube, final_pred, only_SWIR=False)
@@ -575,21 +551,14 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     print("Early stopped training at epoch %d" % epoch)
         #     break  # terminate the training loop
 
-            # # This will save the whole shebang, which is a bit stupid
-            # enc_save_name = "encoder.pt"
-            # dec_save_name = "decoder.pt"
-            # torch.save(enc, f"./{enc_save_name}")
-            # torch.save(dec, f"./{dec_save_name}")
-
-        # every n:th epoch plot endmember spectra and false color images from longer end
+        # Every n:th epoch make plots of the results
         if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
-            # final_pred = utils.SSA2reflectance(final_pred)
+
             plot_endmembers = False
             if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
                 # Get weights of last layer, the endmember spectra, bring them to CPU and convert to numpy
-                endmembers = dec.layers_nonlinear[-1].weight.data.detach().cpu().numpy()
+                endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
                 # Retrieve endmember spectra by summing the weights of each kernel
-                # dec_kernel_mid = int((dec_params['d_kernel_size'] - 1) / 2)
                 endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
                 plotter.plot_endmembers(endmembers, epoch)
 
@@ -606,16 +575,17 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             plt.savefig(path, dpi=300)
             plt.close(fig)
 
-            # Get abundance maps from encoder predictions and plot them as images
+            # Get abundance maps from encoder predictions
             abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                    masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
             # plotter.plot_abundance_maps(abundances, epoch)
 
-            # Plot RMSE error maps of abundance predictions
+            # Calculate RMSE error maps of abundance predictions
             pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
             abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
             # plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
+
             gt = copy.deepcopy(training_data.gt_abundances)
             for i in range(2):
                 gt[i] = simulation.apply_circular_mask(np.expand_dims(gt[i] + 1e-6, axis=-1), h=w, w=h,
@@ -680,6 +650,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                         worst_score = spectral_angle + R2_dist
                         worst_indices = (i, j)
 
+            # Plots to illustrate reconstruction error
             plotter.plot_SAM(spectral_angles, epoch)
             # plotter.plot_R2(R2_distances, epoch)
 

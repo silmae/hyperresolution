@@ -333,16 +333,6 @@ def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
     im.axes.xaxis.set_ticks([])
     im.axes.yaxis.set_ticks([])
 
-    # for i in range(2):
-    #     im = axs[1, i].imshow(gt[i], vmin=0, vmax=1)
-    #     axs[1, i].title.set_text(f'GT, {material[i]}')
-    #     im.axes.xaxis.set_ticks([])
-    #     im.axes.yaxis.set_ticks([])
-    # for i in range(2):
-    #     im = axs[2, i].imshow(RMSE_maps[i, :, :], vmin=0, vmax=1)
-    #     axs[2, i].title.set_text(f'RMSE, {material[i]}')
-    #     im.axes.xaxis.set_ticks([])
-    #     im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
     folder = './figures/'
     image_name = f"abundance_maps_with_gt_e{epoch}.{image_type}"
