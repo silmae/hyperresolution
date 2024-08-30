@@ -127,8 +127,7 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         cube = smoothed_cube
 
     VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube, vignetting)
-    minimi = np.min(np.nan_to_num(VIS_and_NIR_data))
-    minimi = np.min(SWIR_data)
+
     # Sanity check plots
     # plt.figure()
     # plt.imshow(cube_short[:, :, 20])

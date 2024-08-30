@@ -71,7 +71,8 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
 
-    data_shape = 'full_cube'
+    data_shape = 'full_cube'  # Full length cube: ASPECT VNIR cube with a cube instead of spectrum for SWIR
+    data_shape = 'VNIR_cube'
     if data_shape == 'VNIR_cube':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
 
