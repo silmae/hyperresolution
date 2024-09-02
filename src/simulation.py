@@ -126,6 +126,22 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         # plt.show()
         cube = smoothed_cube
 
+    add_noise = True
+    # Apply gaussian noise to the image
+    if add_noise:
+        rng = np.random.default_rng(seed=42)
+        mu, sigma = 0, 0.01  # mean and standard deviation
+        s = rng.normal(mu, sigma, np.shape(cube))
+        s = np.clip(s, a_min=-2*sigma, a_max=2*sigma)
+        cube = cube + s + 2*sigma
+        # plt.figure()
+        # plt.imshow(np.sum(cube, axis=-1))
+        # plt.plot(cube[100, 100, :])
+        # cube = np.clip(cube, a_max=1, a_min=0)
+        # plt.plot(cube[100, 100, :])
+        # plt.show()
+        # print('')
+
     VIS_and_NIR_data, SWIR_data, test_data = cube2ASPECT_data(cube, vignetting)
     minimi = np.min(np.nan_to_num(VIS_and_NIR_data))
     minimi = np.min(SWIR_data)
