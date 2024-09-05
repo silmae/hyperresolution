@@ -130,7 +130,7 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
     # Apply gaussian noise to the image
     if add_noise:
         rng = np.random.default_rng(seed=42)
-        mu, sigma = 0, 0.01  # mean and standard deviation
+        mu, sigma = 0, 0.02  # mean and standard deviation
         s = rng.normal(mu, sigma, np.shape(cube))
         s = np.clip(s, a_min=-2*sigma, a_max=2*sigma)
         cube = cube + s + 2*sigma
