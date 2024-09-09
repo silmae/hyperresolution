@@ -188,7 +188,44 @@ def load_Didymos_reflectance_spectrum(denoise=True):
     return didymos_wavelengths, didymos_reflectance
 
 
-def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
+def apply_mask(cube, mask, reflectance, px_percentage, abundances):
+    # Set the mask area to 0 in the spectral image cube
+    cube_masked = cube * np.expand_dims(mask, axis=2)
+    cube = cube - cube_masked
+
+    # Calculate a cube that has proper data only in the area where mask is 1, and rest is zeroes
+    crater_frame = cube_masked[:, :, 0] / np.max(cube_masked[:, :, 0])
+    crater_masked = np.expand_dims(crater_frame, axis=2) * reflectance
+
+    # Plug the crater cube into the actual cube
+    cube = cube + crater_masked
+
+    # Similar treatment for the abundance maps: calculate abundances of the crater, set crater area to zero in
+    # original abundance maps, then plug in the crater abundance maps
+
+    # Normalized abundance map of masked area
+    norm_abundance_masked = np.copy(abundances[0])
+    norm_abundance_masked = (norm_abundance_masked * mask) / np.max(norm_abundance_masked * mask)
+    # Calculate masked area abundance maps
+    px_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * float(px_percentage) / 100
+    ol_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * (100 - float(px_percentage)) / 100
+
+    # Set abundances of the masked area to zero
+    for i in range(2):
+        abundances[i] = abundances[i] - (abundances[i] * mask)
+
+    # Plug the masked area abundance maps in the original maps
+    abundances[0] = abundances[0] + px_abundance_masked
+    abundances[1] = abundances[1] + ol_abundance_masked
+
+    # fig, axs = plt.subplots(1, 2)
+    # axs[0].imshow(abundances[0])
+    # axs[1].imshow(abundances[1])
+    # plt.show()
+    return cube, abundances
+
+
+def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', blotches='px10'):
     """Loads a simulated Didymos image by loading a frame from a simulated DN image, using that as a brightness map
     for a spectrum. Can create a circular area of different material to simulate a crater. """
 
@@ -233,45 +270,24 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10'):
         crater_reflectance, crater_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{crater}.csv'))
         crater_reflectance, _, _ = simulation.ASPECT_resampling(crater_reflectance, crater_wavelengths)
 
-        crater_masked, mask = simulation.apply_circular_mask(data=np.copy(cube),
+        crater_masked, crater_mask = simulation.apply_circular_mask(data=np.copy(cube),
                                                        h=cube.shape[0],
                                                        w=cube.shape[1],
                                                        radius=constants.ASPECT_SWIR_equivalent_radius / 5,
                                                        masking_value=0,
                                                        return_mask=True)
 
-        # Set the crater area to 0 in the spectral image cube
-        cube = cube - crater_masked
 
-        # Calculate a cube that has proper data only in the crater and rest is zeroes
-        crater_frame = crater_masked[:, :, 0] / np.max(crater_masked[:, :, 0])
-        crater_masked = np.expand_dims(crater_frame, axis=2) * crater_reflectance
+        cube, gt_abundances = apply_mask(cube, crater_mask, crater_reflectance, px_percentage=crater[2:], abundances=gt_abundances)
 
-        # Plug the crater cube into the actual cube
-        cube = cube + crater_masked
+    if blotches is not None:
+        blotch_reflectance, blotch_wavelengths = load_spectral_csv(Path(constants.lab_mixtures_path, f'{blotches}.csv'))
+        blotch_reflectance, _, _ = simulation.ASPECT_resampling(blotch_reflectance, blotch_wavelengths)
 
-        # Similar treatment for the abundance maps: calculate abundaces of the crater, set crater area to zero in
-        # original abundance maps, then plug in the crater abundance maps
+        blotch_mask = np.asarray(cv.imread("datasets/masks/D1v5-10km-noiseless-40ms-blotches.png"))
+        blotch_mask = blotch_mask[:, :, 0] / np.max(blotch_mask[:, :, 0])
 
-        # Normalized abundance map of crater
-        norm_abundance_masked = np.copy(gt_abundances[0])
-        norm_abundance_masked = (norm_abundance_masked * mask) / np.max(norm_abundance_masked * mask)
-        # Calculate crater abundance maps
-        px_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * float(crater[2:]) / 100
-        ol_abundance_masked = (np.copy(norm_abundance_masked) > 1e-20) * (100 - float(crater[2:])) / 100
-
-        # Set the crater area to zero
-        for i in range(2):
-            gt_abundances[i] = gt_abundances[i] - (gt_abundances[i] * mask)
-
-        # Plug the crater abundance maps in the original maps
-        gt_abundances[0] = gt_abundances[0] + px_abundance_masked
-        gt_abundances[1] = gt_abundances[1] + ol_abundance_masked
-
-        # fig, axs = plt.subplots(1, 2)
-        # axs[0].imshow(gt_abundances[0])
-        # axs[1].imshow(gt_abundances[1])
-        # plt.show()
+        cube, gt_abundances = apply_mask(cube, blotch_mask, blotch_reflectance, px_percentage=blotches[2:], abundances=gt_abundances)
 
     # Add a small epsilon value to not get 0 at the areas not occupied by the asteroid - this is done avoid division by
     # zero later
