@@ -390,13 +390,18 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
         loss_short = metric_mape(short_y_pred, short_y_true)
 
-        loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
+        # loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
+
+        loss_short_SID = cube_SID(short_y_pred, short_y_true)
 
         # Calculate long wavelength loss by comparing mean spectrum of the masked prediction to GT spectrum
         long_y_pred = torch.nanmean(long_y_pred, dim=(2, 3))
         loss_long = metric_mape(long_y_pred, long_y_true)
 
-        loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
+        # loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
+
+        loss_long_SID = cube_SID(long_y_pred, long_y_true)
+
 
         # Correlation of GT cube spatial features and full reconstruction cube spatial features
         spatial_correlation = tensor_image_corrcoeff(short_y_true, y_pred)
@@ -405,7 +410,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + (loss_short_SAM * 100) + 10 * loss_long + 10 * (loss_long_SAM * 100) + 100 * (1 - spatial_correlation)
+        loss_sum = loss_short + (loss_short_SID * 100) + 10 * loss_long + 10 * (loss_long_SID * 100) + 100 * (1 - spatial_correlation)
         # loss_sum = loss_short_SAM + 10 * loss_long_SAM + 10 * (1 - spatial_correlation)
 
         return loss_sum
