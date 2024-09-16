@@ -207,11 +207,23 @@ def denoise_array(array: np.ndarray, sigma: float, x: np.ndarray or None = None,
 
 
 def reflectance2SSA(reflectance, mu=1, mu0=1):
-    """Convert spectral reflectance vector or cube to single-scattering albedo, for ndarray or torch tensor
-
-    Equation from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using Hapke Model and Convolutional
-    Neural Network", Rasti et al. (2022).
     """
+    Convert spectral reflectance vector or cube to single-scattering albedo, for ndarray or torch tensor.
+    Default mu and mu0 values of 1 should work for unmixing.
+
+    Equation (and the default mu and mu0 values) from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using
+    Hapke Model and Convolutional Neural Network", Rasti et al. (2022).
+
+    :param reflectance:
+        Spectral reflectance cube or vector, can be np.ndarray or torch.Tensor
+    :param mu:
+        Cosine of emission angle
+    :param mu0:
+        Cosine of incidence angle
+    :return:
+        Single scattering albedo cube, in same type as input reflectance cube
+    """
+
     if type(reflectance) == np.ndarray:
         ssa = 1 \
               - (
@@ -219,7 +231,7 @@ def reflectance2SSA(reflectance, mu=1, mu0=1):
                 / (1 + 4 * mu * mu0 * reflectance)
                  )**2
 
-    elif type(reflectance) == Tensor:  # Here the same operations should probably work for arrays and tensors, right? Unless the powers don't
+    elif type(reflectance) == Tensor:
         ssa = 1 \
                 - (
                     (torch.sqrt((mu + mu0) ** 2 * reflectance ** 2 + (1 + 4 * mu * mu0 * reflectance) * (1 - reflectance)) - (mu + mu0) * reflectance)
@@ -230,11 +242,23 @@ def reflectance2SSA(reflectance, mu=1, mu0=1):
 
 
 def SSA2reflectance(ssa, mu=1, mu0=1):
-    """Convert single scattering albedo vector or cube to spectral reflectance, for ndarray or torch tensor
-
-    Equation from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using Hapke Model and Convolutional
-    Neural Network", Rasti et al. (2022).
     """
+    Convert spectral single scattering albedo vector or cube to spectral reflectance, for ndarray or torch tensor.
+    Default mu and mu0 values of 1 should work for unmixing.
+
+    Equation (and the default mu and mu0 values) from "HapkeCNN: Blind Nonlinear Unmixing for Intimate Mixtures Using
+    Hapke Model and Convolutional Neural Network", Rasti et al. (2022).
+
+    :param ssa:
+        Spectral single-scattering albedo cube or vector, can be np.ndarray or torch.Tensor
+    :param mu:
+        Cosine of emission angle
+    :param mu0:
+        Cosine of incidence angle
+    :return:
+        Reflectance cube, in same type as input SSA cube
+    """
+
     if type(ssa) == np.ndarray:
         reflectance = ssa / ((1 + 2 * mu * np.sqrt((1 - ssa))) * (1 + 2 * mu0 * np.sqrt((1 - ssa))))
     elif type(ssa) == Tensor:
