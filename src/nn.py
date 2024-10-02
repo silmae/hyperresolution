@@ -84,6 +84,7 @@ class Encoder(nn.Module):
         self.layers.append(nn.Conv2d(in_channels=band_count,
                                      out_channels=self.filter_counts[0],
                                      kernel_size=e_kernel_size, padding='same',
+                                     padding_mode='reflect',
                                      stride=1,
                                      bias=False))
         if enc_layer_count > 2:
@@ -93,12 +94,14 @@ class Encoder(nn.Module):
                 self.layers.append(nn.Conv2d(in_channels=self.filter_counts[i - 1],
                                              out_channels=self.filter_counts[i],
                                              kernel_size=e_kernel_size, padding='same',
+                                             padding_mode='reflect',
                                              stride=1,
                                              bias=False))
 
         self.layers.append(nn.Conv2d(in_channels=int(self.filter_counts[-1]),
                                      out_channels=endmember_count, kernel_size=1,
                                      padding='same',
+                                     padding_mode='reflect',
                                      stride=1,
                                      bias=False))
 
@@ -142,6 +145,7 @@ class Decoder(nn.Module):
                       out_channels=self.band_count,
                       kernel_size=self.kernel_size,
                       padding='same',
+                      padding_mode='reflect',
                       stride=1,
                       bias=False)
         )
