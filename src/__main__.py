@@ -93,10 +93,10 @@ if __name__ == '__main__':
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 5,
+    enc_params = {'enc_layer_count': 3,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 256,
+                  'e_filter_count': 128,
                   'e_kernel_size': 3,
                   'kernel_reduction': 0}
 
