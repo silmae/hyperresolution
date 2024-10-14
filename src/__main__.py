@@ -43,6 +43,18 @@ if __name__ == '__main__':
     # # Plot to illustrate nonlinearity of spectral mixing
     # plotter.illustrate_mixing_nonlinearity()
 
+    # Loading RELAB spectra
+    file_handling.load_RELAB_spectrum(filepath=Path('datasets/RELAB_pyroxenes/c1dl51a.tab'))
+
+    filelist = os.listdir(Path('datasets/RELAB_pyroxenes'))
+    plt.figure()
+    for i, filename in enumerate(filelist):
+        if '.tab' in filename and not 'a.tab' in filename and i>=120:
+            wls, refl = file_handling.load_RELAB_spectrum(Path('datasets/RELAB_pyroxenes', filename))
+            plt.plot(wls, refl, label=filename)
+    plt.legend()
+    plt.show()
+
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -81,6 +93,10 @@ if __name__ == '__main__':
                                     filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape)
 
+    # TODO New training data: similar to the simulated cubes made with measured mineral mixtures, but now with
+    #  computational SSA mixtures of pyroxen spectra from RELAB. Could first be same sharp-edge blotches as before,
+    #  but at some point make smooth transitions for the mixing factor.
+
     bands = training_data.l
 
     endmember_count = 2
@@ -108,6 +124,7 @@ if __name__ == '__main__':
     # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
     didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
     didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    # TODO S and Q type asteroid mean spectra as endmembers, for the measured mixtures?
 
     # Load pyroxene and olivine spectra
     pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
