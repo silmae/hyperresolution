@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import logging
+import csv
 
 import numpy as np
 import scipy.io  # for loading Matlab matrices
@@ -23,6 +24,31 @@ def load_spectral_csv(filepath, convert2micron=True):
         wavelengths = wavelengths / 1000
 
     return spectrum, wavelengths
+
+
+def load_RELAB_spectrum(filepath, convert2micron=True):
+    """Read .tab file of a RELAB spectrum from file. Ignores the first row, and last 25 rows, reads the remaining rows
+    with pandas and extracts the numpy array of values. Returns two vectors: wavelengths, reflectances. Converts
+    wavelengths from nanometers to microns by default. """
+
+    import pandas as pd
+    df = pd.read_csv(filepath, sep='\s+', skipfooter=25, skiprows=0, header=0, names=['wl', 'R', 'err'], engine='python')
+    data = df.values
+    data = data[:, :2]  # discard the third column that has error values
+
+    wavelengths = data[:, 0]
+    spectrum = data[:, 1]
+
+    if convert2micron:
+        wavelengths = wavelengths / 1e3
+
+    # plt.figure()
+    # plt.title(filepath)
+    # plt.plot(wavelengths, spectrum)
+    # plt.savefig(str(filepath)[:-4] + '.png')
+    # plt.show()
+
+    return wavelengths, spectrum
 
 
 def file_loader_Dawn_PDS3(filepath):
