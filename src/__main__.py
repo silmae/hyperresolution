@@ -43,17 +43,17 @@ if __name__ == '__main__':
     # # Plot to illustrate nonlinearity of spectral mixing
     # plotter.illustrate_mixing_nonlinearity()
 
-    # Loading RELAB spectra
-    file_handling.load_RELAB_spectrum(filepath=Path('datasets/RELAB_pyroxenes/c1dl51a.tab'))
-
-    filelist = os.listdir(Path('datasets/RELAB_pyroxenes'))
-    plt.figure()
-    for i, filename in enumerate(filelist):
-        if '.tab' in filename and not 'a.tab' in filename and i>=120:
-            wls, refl = file_handling.load_RELAB_spectrum(Path('datasets/RELAB_pyroxenes', filename))
-            plt.plot(wls, refl, label=filename)
-    plt.legend()
-    plt.show()
+    # # Loading RELAB spectra
+    # file_handling.load_RELAB_spectrum(filepath=Path('datasets/RELAB_pyroxenes/c1dl51a.tab'))
+    #
+    # filelist = os.listdir(Path('datasets/RELAB_pyroxenes'))
+    # plt.figure()
+    # for i, filename in enumerate(filelist):
+    #     if '.tab' in filename and not 'a.tab' in filename and i>=120:
+    #         wls, refl = file_handling.load_RELAB_spectrum(Path('datasets/RELAB_pyroxenes', filename))
+    #         plt.plot(wls, refl, label=filename)
+    # plt.legend()
+    # plt.show()
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -89,8 +89,12 @@ if __name__ == '__main__':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
 
     # Simulated images of the Didymos system, by Penttilä et al.
-    training_data = nn.TrainingData(type='simulated_Didymos',
-                                    filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+    # training_data = nn.TrainingData(type='simulated_Didymos',
+    #                                 filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+    #                                 data_shape=data_shape)
+    training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
+                                    filepath=Path(
+                                        './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape)
 
     # TODO New training data: similar to the simulated cubes made with measured mineral mixtures, but now with
@@ -126,19 +130,30 @@ if __name__ == '__main__':
     didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
     # TODO S and Q type asteroid mean spectra as endmembers, for the measured mixtures?
 
-    # Load pyroxene and olivine spectra
-    pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
-    olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    # # Load pyroxene and olivine spectra
+    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
-    # Interpolate the endmember spectra to ASPECT wavelengths
-    pyroxene, new_wls, _ = simulation.ASPECT_resampling(pyroxene, wls)
-    olivine, new_wls, _ = simulation.ASPECT_resampling(olivine, wls)
+    # Load pyroxene spectra
+    wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
+    wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
 
-    # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
-    pyroxene = utils.reflectance2SSA(pyroxene)
-    olivine = utils.reflectance2SSA(olivine)
+    def prepare_endmembers(em1, em2, wls):
+        # Interpolate the endmember spectra to ASPECT wavelengths
+        em1, new_wls, _ = simulation.ASPECT_resampling(em1, wls)
+        em2, new_wls, _ = simulation.ASPECT_resampling(em2, wls)
 
-    endmembers = [pyroxene, olivine]
+        # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
+        em1 = utils.reflectance2SSA(em1)
+        em2 = utils.reflectance2SSA(em2)
+
+        return em1, em2
+
+    # pyroxene, olivine = prepare_endmembers(pyroxene, olivine, wls)
+    # endmembers = [pyroxene, olivine]
+
+    endmember1, endmember2 = prepare_endmembers(endmember1, endmember2, wls)
+    endmembers = [endmember1, endmember2]
 
     # Build and train a neural network
     nn.train(training_data,
