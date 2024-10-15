@@ -185,6 +185,14 @@ class TrainingData(Dataset):
             for index, abundance in enumerate(gt_abundances):
                 gt_abundances[index] = np.transpose(abundance)
             self.gt_abundances = gt_abundances
+        elif type == 'simulated_Didymos_pyroxenes':
+            h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos_pyroxenes(frame_filepath=filepath,
+                                                                                                                     spectrum1_filepath='datasets/RELAB_pyroxenes/c1dl10.tab',
+                                                                                                                    spectrum2_filepath='datasets/RELAB_pyroxenes/c1dl13.tab')
+            # Transpose the abundance maps to get matching dimensions with network predictions
+            for index, abundance in enumerate(gt_abundances):
+                gt_abundances[index] = np.transpose(abundance)
+            self.gt_abundances = gt_abundances
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
