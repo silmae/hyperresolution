@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import spectral.io.envi as envi
 import cv2 as cv
 from planetaryimage import CubeFile
+from perlin_noise import PerlinNoise
 
 from src import constants
 from src import utils
@@ -24,6 +25,18 @@ def load_spectral_csv(filepath, convert2micron=True):
         wavelengths = wavelengths / 1000
 
     return spectrum, wavelengths
+
+
+def load_mat_cube(filepath, dark_correction=True):
+    """Load datacube saved as .mat file"""
+    data_dict = scipy.io.loadmat(filepath)
+    datacube = data_dict['cube']
+    wavelengths = np.squeeze(data_dict['wavelengths'] / 1000)
+
+    if dark_correction:
+        datacube = datacube - np.mean(datacube[:10, :10, :], axis=(0, 1))
+
+    return datacube, wavelengths
 
 
 def load_RELAB_spectrum(filepath, convert2micron=True):
@@ -253,18 +266,11 @@ def apply_mask(cube, mask, reflectance, px_percentage, abundances):
 
 def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', blotches='px10'):
     """Loads a simulated Didymos image by loading a frame from a simulated DN image, using that as a brightness map
-    for a spectrum. Can create a circular area of different material to simulate a crater. """
+    for a spectrum. Can create a circular area of different material to simulate a crater, and irregular blotches
+    from a mask image loaded from disc. """
 
-    def load_file(filepath):
-        data_dict = scipy.io.loadmat(filepath)
-        datacube = data_dict['cube']
-        wavelengths = np.squeeze(data_dict['wavelengths'] / 1000)
-        return datacube, wavelengths
-
-    cube, nir_wavelengths = load_file(filepath)
-
-    # Dark correction
-    cube = cube - np.mean(cube[:10, :10, :], axis=(0, 1))
+    # Load datacube simulated by Penttilä et al.
+    cube, nir_wavelengths = load_mat_cube(filepath, dark_correction=True)
 
     # Extract one frame from the image cube and normalize it so that maximum value is 1
     frame = cube[:, :, 0] / np.max(cube[:, :, 0])
@@ -334,6 +340,58 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', b
     # plt.show()
 
     return h, w, l, cube, wavelengths, FWHMs, gt_abundances
+
+
+def file_loader_simulated_Didymos_pyroxenes(frame_filepath, spectrum1_filepath, spectrum2_filepath):
+
+    # Load datacube simulated by Penttilä et al.
+    cube, nir_wavelengths = load_mat_cube(frame_filepath, dark_correction=True)  # Dark correction assumes that target does not fill FOV
+
+    # Extract one frame from the image cube and normalize it so that maximum value is 1
+    frame = cube[:, :, 0] / np.max(cube[:, :, 0])
+
+    # Create GT maps: generate Perlin noise image, subtract copy from 1, multiply both with thresholded brightness map
+    #TODO add perlin noise to env yml
+
+    noise = PerlinNoise(octaves=5, seed=42)
+    xpix, ypix = np.shape(frame)[1], np.shape(frame)[0]
+    pic = [[noise([i / xpix, j / ypix]) for j in range(xpix)] for i in range(ypix)]
+    pic = np.asarray(pic) + 1
+    pic = pic / np.max(pic)
+
+    abundance_map1 = pic * (frame > 1e-20)
+    abundance_map2 = (1 - np.copy(pic)) * (frame > 1e-20)
+    gt_abundances = [abundance_map1, abundance_map2]
+
+    # fig, axs = plt.subplots(1, 2)
+    # axs[0].imshow(abundance_map1)
+    # axs[1].imshow(abundance_map2)
+    # plt.show()
+
+    # Load spectra, resample to ASPECT wavelengths
+    wavelengths, spectrum1 = load_RELAB_spectrum(spectrum1_filepath)
+    wavelengths, spectrum2 = load_RELAB_spectrum(spectrum2_filepath)
+
+    spectrum1, _, FWHMs = simulation.ASPECT_resampling(spectrum1, wavelengths)
+    spectrum2, ASPECT_wavelengths, FWHMs = simulation.ASPECT_resampling(spectrum2, wavelengths)
+
+    spectrum1 = utils.reflectance2SSA(spectrum1)
+    spectrum2 = utils.reflectance2SSA(spectrum2)
+
+    # Create empty image, populate each pixel with reflectance spectrum made as SSA mixture
+    h = len(frame[:, 0])
+    w = len(frame[0, :])
+    l = len(spectrum1)
+    cube = np.zeros(shape=(h, w, l))
+    for i in range(h):
+        for j in range(w):
+            cube[i, j, :] = utils.SSA2reflectance(spectrum1 * abundance_map1[i, j] + spectrum2 * abundance_map2[i, j])
+
+    # plt.figure()
+    # plt.plot(cube[200, 200, :])
+    # plt.show()
+
+    return h, w, l, cube, ASPECT_wavelengths, FWHMs, gt_abundances
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
