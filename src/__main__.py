@@ -45,15 +45,41 @@ if __name__ == '__main__':
 
     # # Loading RELAB spectra
     # file_handling.load_RELAB_spectrum(filepath=Path('datasets/RELAB_pyroxenes/c1dl51a.tab'))
-    #
+    # pyroxene_spectra = []
+    # pyroxene_filenames = []
     # filelist = os.listdir(Path('datasets/RELAB_pyroxenes'))
-    # plt.figure()
+    # # plt.figure()
     # for i, filename in enumerate(filelist):
-    #     if '.tab' in filename and not 'a.tab' in filename and i>=120:
+    #     if '.tab' in filename:# and not 'a.tab' in filename:# and i>=120:
     #         wls, refl = file_handling.load_RELAB_spectrum(Path('datasets/RELAB_pyroxenes', filename))
-    #         plt.plot(wls, refl, label=filename)
+    #         # plt.plot(wls, refl, label=filename)
+    #         refl, new_wls, _ = simulation.ASPECT_resampling(refl, wls)
+    #         pyroxene_spectra.append(refl)
+    #         pyroxene_filenames.append(filename)
+    # best_SAM_score = 1000
+    # best_indices = [0, 0]
+    #
+    # for i in range(len(pyroxene_spectra)):
+    #     for j in range(i + 1, len(pyroxene_spectra)):
+    #         spectrum = pyroxene_spectra[i]
+    #         comparison_spectrum = pyroxene_spectra[j]
+    #         SAM_short = nn.SAM(spectrum[:constants.ASPECT_SWIR_start_channel_index],
+    #                            comparison_spectrum[:constants.ASPECT_SWIR_start_channel_index])
+    #         SAM_long = nn.SAM(spectrum[constants.ASPECT_SWIR_start_channel_index:],
+    #                           comparison_spectrum[constants.ASPECT_SWIR_start_channel_index:])
+    #         SAM_score = 2*SAM_short - SAM_long
+    #         if SAM_score < best_SAM_score:
+    #             best_SAM_score = SAM_score
+    #             best_indices = [i, j]
+    #
+    # best_pair_filenames = [pyroxene_filenames[best_indices[0]], pyroxene_filenames[best_indices[1]]]
+    # best_pair_spectra = [pyroxene_spectra[best_indices[0]], pyroxene_spectra[best_indices[1]]]
+    # plt.figure()
+    # plt.plot(new_wls, best_pair_spectra[0], label=best_pair_filenames[0])
+    # plt.plot(new_wls, best_pair_spectra[1], label=best_pair_filenames[1])
     # plt.legend()
     # plt.show()
+
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
@@ -135,13 +161,16 @@ if __name__ == '__main__':
     # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
     # Load pyroxene spectra
-    wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
-    wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
-
-    def prepare_endmembers(em1, em2, wls):
+    # wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
+    # wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
+    wls1, endmember1 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+    wls2, endmember2 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+    def prepare_endmembers(em1, em2, wls1, wls2):
         # Interpolate the endmember spectra to ASPECT wavelengths
-        em1, new_wls, _ = simulation.ASPECT_resampling(em1, wls)
-        em2, new_wls, _ = simulation.ASPECT_resampling(em2, wls)
+        em1, new_wls, _ = simulation.ASPECT_resampling(em1, wls1)
+        em2, new_wls, _ = simulation.ASPECT_resampling(em2, wls2)
 
         # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
         em1 = utils.reflectance2SSA(em1)
@@ -152,7 +181,7 @@ if __name__ == '__main__':
     # pyroxene, olivine = prepare_endmembers(pyroxene, olivine, wls)
     # endmembers = [pyroxene, olivine]
 
-    endmember1, endmember2 = prepare_endmembers(endmember1, endmember2, wls)
+    endmember1, endmember2 = prepare_endmembers(endmember1, endmember2, wls1, wls2)
     endmembers = [endmember1, endmember2]
 
     # Build and train a neural network
