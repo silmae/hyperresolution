@@ -369,11 +369,11 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, spectrum1_filepath, 
     # plt.show()
 
     # Load spectra, resample to ASPECT wavelengths
-    wavelengths, spectrum1 = load_RELAB_spectrum(spectrum1_filepath)
-    wavelengths, spectrum2 = load_RELAB_spectrum(spectrum2_filepath)
+    wavelengths1, spectrum1 = load_RELAB_spectrum(spectrum1_filepath)
+    wavelengths2, spectrum2 = load_RELAB_spectrum(spectrum2_filepath)
 
-    spectrum1, _, FWHMs = simulation.ASPECT_resampling(spectrum1, wavelengths)
-    spectrum2, ASPECT_wavelengths, FWHMs = simulation.ASPECT_resampling(spectrum2, wavelengths)
+    spectrum1, _, FWHMs = simulation.ASPECT_resampling(spectrum1, wavelengths1)
+    spectrum2, ASPECT_wavelengths, FWHMs = simulation.ASPECT_resampling(spectrum2, wavelengths2)
 
     spectrum1 = utils.reflectance2SSA(spectrum1)
     spectrum2 = utils.reflectance2SSA(spectrum2)
