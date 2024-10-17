@@ -75,8 +75,8 @@ if __name__ == '__main__':
     # best_pair_filenames = [pyroxene_filenames[best_indices[0]], pyroxene_filenames[best_indices[1]]]
     # best_pair_spectra = [pyroxene_spectra[best_indices[0]], pyroxene_spectra[best_indices[1]]]
     # plt.figure()
-    # plt.plot(new_wls, best_pair_spectra[0], label=best_pair_filenames[0])
-    # plt.plot(new_wls, best_pair_spectra[1], label=best_pair_filenames[1])
+    # plt.plot(new_wls, best_pair_spectra[0] / np.max(best_pair_spectra[0]), label=best_pair_filenames[0])
+    # plt.plot(new_wls, best_pair_spectra[1] / np.max(best_pair_spectra[1]), label=best_pair_filenames[1])
     # plt.legend()
     # plt.show()
 
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
