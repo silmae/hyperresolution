@@ -569,7 +569,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         #     break  # terminate the training loop
 
         # Every n:th epoch make plots of the results
-        if plots is True and (epoch % 50 == 0 or epoch == n_epochs - 1):
+        if plots is True and (epoch % 100 == 0 or epoch == n_epochs - 1):
 
             plot_endmembers = False
             if plot_endmembers:  # Plot endmember spectra if they are not given as parameters
