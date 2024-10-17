@@ -386,7 +386,8 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, spectrum1_filepath, 
     for i in range(h):
         for j in range(w):
             cube[i, j, :] = utils.SSA2reflectance(spectrum1 * abundance_map1[i, j] + spectrum2 * abundance_map2[i, j])
-
+    for i in range(l):
+        cube[:, :, i] = frame * cube[:, :, i]  # Introduce brightness variation
     # plt.figure()
     # plt.plot(cube[200, 200, :])
     # plt.show()
