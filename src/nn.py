@@ -132,7 +132,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, band_count=200, endmember_count=3, d_kernel_size=13):
+    def __init__(self, band_count=200, endmember_count=3, d_kernel_size=1):
         super(Decoder, self).__init__()
 
         self.band_count = band_count
@@ -185,18 +185,12 @@ class TrainingData(Dataset):
             FWHMs = FWHMs[constants.VIR_channels_start_index:constants.VIR_channels_stop_index]
         elif type == 'simulated_Didymos':
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px50')
-            # Transpose the abundance maps to get matching dimensions with network predictions
-            for index, abundance in enumerate(gt_abundances):
-                gt_abundances[index] = np.transpose(abundance)
-            self.gt_abundances = gt_abundances
+
         elif type == 'simulated_Didymos_pyroxenes':
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos_pyroxenes(frame_filepath=filepath,
                                                                                                                      spectrum1_filepath='datasets/RELAB_pyroxenes/c1dl28a.tab',
                                                                                                                     spectrum2_filepath='datasets/RELAB_pyroxenes/c1dl50a.tab')
-            # Transpose the abundance maps to get matching dimensions with network predictions
-            for index, abundance in enumerate(gt_abundances):
-                gt_abundances[index] = np.transpose(abundance)
-            self.gt_abundances = gt_abundances
+
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
@@ -216,6 +210,17 @@ class TrainingData(Dataset):
         # Transform from original [h, w, bands] with transpose
         test_cube = np.transpose(test_cube, (2, 1, 0))
         input_cube = np.transpose(input_cube, (2, 1, 0))
+
+        if gt_abundances is not None:
+            # Do scaling tricks on the gt abundance maps, to have them properly match the datacube
+            gt_abundances_array = np.transpose(np.asarray(gt_abundances), (1, 2, 0))
+            gt_abundances = simulation.cube2ASPECT_data(gt_abundances_array, vignetting=False)
+            gt_abundances = [gt_abundances[:, :, 0], gt_abundances[:, :, 1]]
+
+            # Transpose the abundance maps to get matching dimensions with network predictions
+            for index, abundance in enumerate(gt_abundances):
+                gt_abundances[index] = np.transpose(abundance)
+            self.gt_abundances = gt_abundances
 
         if data_shape == 'actual':
             Y = np.zeros((2, input_cube.shape[0], input_cube.shape[1],
@@ -422,8 +427,8 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         # print(f'loss_short: {loss_short}, loss_long: {loss_long}, loss_long_SAM: {loss_long_SAM}, loss_short_SAM: {loss_short_SAM}')
 
         # Loss as sum of the calculated components
-        loss_sum = loss_short + (loss_short_SID * 100) + 10 * loss_long + 10 * (loss_long_SID * 100) + 100 * (1 - spatial_correlation)
-        # loss_sum = loss_short_SAM + 10 * loss_long_SAM + 10 * (1 - spatial_correlation)
+        # loss_sum = loss_short + (loss_short_SID * 100) + 10 * loss_long + 10 * (loss_long_SID * 100) + 100 * (1 - spatial_correlation)
+        loss_sum = loss_short_SID + 10 * loss_long_SID + (1 - spatial_correlation)
 
         return loss_sum
 
