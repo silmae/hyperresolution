@@ -130,7 +130,7 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
     # Apply gaussian noise to the image
     if add_noise:
         rng = np.random.default_rng(seed=42)
-        mu, sigma = 0, 0.001  # mean and standard deviation
+        mu, sigma = 0, 0.01  # mean and standard deviation
         s = rng.normal(mu, sigma, np.shape(cube))
         s = np.clip(s, a_min=-2*sigma, a_max=2*sigma)
         cube = cube + s + 2*sigma
@@ -187,10 +187,14 @@ def cube2ASPECT_data(cube: np.ndarray, vignetting=True):
 
     cube = resize_image_cube(cube, height, width)
 
-    cube = apply_circular_mask(cube, height, width, masking_value=float('nan'))
+    cube = apply_circular_mask(cube + 1e-6, height, width, masking_value=float('nan'))
 
     test_cube = crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[0] /
                                                      constants.ASPECT_NIR_channel_shape[1], keep_dim=1)
+
+    if len(test_cube[0, 0, :]) < constants.ASPECT_SWIR_start_channel_index:
+        # If less channels than VNIR, the calculated cube is abundance maps ground truth and is returned now
+        return test_cube
 
     cube_short = test_cube[:, :, :constants.ASPECT_SWIR_start_channel_index]
     cube_long = cube[:, :, constants.ASPECT_SWIR_start_channel_index:]
