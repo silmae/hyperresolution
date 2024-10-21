@@ -32,4 +32,5 @@ dependencies:
       - optuna # hyperparameter optimization
       - opencv-python-headless # edge detection to determine offset for Dawn VIR VIS and IR
       - planetaryimage # opening ISIS .cub files from Dawn
+      - perlin-noise # generating structured noise to work as simulated abundance maps
 #      - Pillow
