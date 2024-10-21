@@ -302,36 +302,24 @@ def plot_abundance_maps(abundances, epoch, log_scale=False):
 def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
     """Plot predicted abundance maps together with ground truth maps and RMSE of abundance estimations"""
 
-    n_row, n_col = 2, 3
+    n_row, n_col = len(abundances), 3
     fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
     # axs = axs.flatten()
     # data_name = ['Ground truth', 'Predicted', 'RMSE']
-    # for i in range(3):
-    im = axs[0, 0].imshow(gt[0], vmin=0, vmax=1)
-    axs[0, 0].title.set_text(f'Ground truth, pyroxene')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
-    im = axs[0, 1].imshow(abundances[0], vmin=0, vmax=1)
-    axs[0, 1].title.set_text(f'Predicted, pyroxene')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
-    im = axs[0, 2].imshow(RMSE_maps[0, :, :], vmin=0, vmax=1)
-    axs[0, 2].title.set_text(f'RMSE, pyroxene')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
-
-    im = axs[1, 0].imshow(gt[1], vmin=0, vmax=1)
-    axs[1, 0].title.set_text(f'Ground truth, olivine')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
-    im = axs[1, 1].imshow(abundances[1], vmin=0, vmax=1)
-    axs[1, 1].title.set_text(f'Predicted, olivine')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
-    im = axs[1, 2].imshow(RMSE_maps[1, :, :], vmin=0, vmax=1)
-    axs[1, 2].title.set_text(f'RMSE, olivine')
-    im.axes.xaxis.set_ticks([])
-    im.axes.yaxis.set_ticks([])
+    vmax = 0.75
+    for i in range(len(abundances)):
+        im = axs[i, 0].imshow(gt[i], vmin=0, vmax=vmax)
+        axs[i, 0].title.set_text(f'Ground truth, EM {i+1}')
+        im.axes.xaxis.set_ticks([])
+        im.axes.yaxis.set_ticks([])
+        im = axs[i, 1].imshow(abundances[i], vmin=0, vmax=vmax)
+        axs[i, 1].title.set_text(f'Predicted, EM {i+1}')
+        im.axes.xaxis.set_ticks([])
+        im.axes.yaxis.set_ticks([])
+        im = axs[i, 2].imshow(RMSE_maps[i, :, :], vmin=0, vmax=vmax)
+        axs[i, 2].title.set_text(f'RMSE, EM {i+1}')
+        im.axes.xaxis.set_ticks([])
+        im.axes.yaxis.set_ticks([])
 
     fig.colorbar(im, ax=axs.ravel().tolist())
     folder = './figures/'
