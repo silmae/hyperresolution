@@ -172,7 +172,7 @@ class Decoder(nn.Module):
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
-    def __init__(self, type, filepath, data_shape='actual'):
+    def __init__(self, type, filepath, data_shape='actual', endmembers=None):
 
         if type == 'DAWN_PDS3':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_PDS3(filepath)
@@ -187,9 +187,12 @@ class TrainingData(Dataset):
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos(filepath, spectrum='px75', crater='px50')
 
         elif type == 'simulated_Didymos_pyroxenes':
+            if endmembers is None:
+                logging.info('No list of endmember spectra give in training data construction')
+                exit(1)
+
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos_pyroxenes(frame_filepath=filepath,
-                                                                                                                     spectrum1_filepath='datasets/RELAB_pyroxenes/c1dl28a.tab',
-                                                                                                                    spectrum2_filepath='datasets/RELAB_pyroxenes/c1dl50a.tab')
+                                                                                                                     endmembers=endmembers)
 
         else:
             logging.info('Invalid training data type, ending execution')
@@ -215,7 +218,11 @@ class TrainingData(Dataset):
             # Do scaling tricks on the gt abundance maps, to have them properly match the datacube
             gt_abundances_array = np.transpose(np.asarray(gt_abundances), (1, 2, 0))
             gt_abundances = simulation.cube2ASPECT_data(gt_abundances_array, vignetting=False)
-            gt_abundances = [gt_abundances[:, :, 0], gt_abundances[:, :, 1]]
+            gt_abundance_list = []
+            for i in range(len(gt_abundances[0, 0, :])):
+                gt_abundance_list.append(gt_abundances[:, :, i])
+                # gt_abundances = [gt_abundances[:, :, 0], gt_abundances[:, :, 1]]
+            gt_abundances = gt_abundance_list
 
             # Transpose the abundance maps to get matching dimensions with network predictions
             for index, abundance in enumerate(gt_abundances):
@@ -459,7 +466,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
     def test_fn_unmixing(ground_abundances, pred_abundances, return_maps=False):
         """Calculate a score to quantify the unmixing performance by comparing produced abundance maps
         to ideal ones. """
-        RMSE_scores = np.zeros((2, pred_abundances[0].shape[0], pred_abundances[0].shape[1]))
+        RMSE_scores = np.zeros((len(ground_abundances), pred_abundances[0].shape[0], pred_abundances[0].shape[1]))
         for index in range(len(ground_abundances)):
             error = np.abs(pred_abundances[index] - ground_abundances[index]) ** 2
             RMSE_scores[index, :, :] = np.sqrt((1 / len(ground_abundances)) * error)
@@ -507,7 +514,7 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
             enc_pred = enc(x)
             enc_pred = torch.nan_to_num(enc_pred)  # check nans again
-            abundances, brightness_map = torch.split(enc_pred, split_size_or_sections=[2, 1], dim=1)
+            abundances, brightness_map = torch.split(enc_pred, split_size_or_sections=[len(initial_endmembers), 1], dim=1)
             dec_pred = dec(abundances + epsilon)
             dec_pred = torch.nan_to_num(dec_pred)  # ... and again
             brightness_map = torch.abs(1 - brightness_map) + epsilon  # sum-to-one constraint means that brightness map is actually a darkness map: has high values where there are no spectral signals
@@ -534,7 +541,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
                                                         radius=constants.ASPECT_SWIR_equivalent_radius,
                                                         masking_value=torch.nan)
             abundances = np.squeeze(abundances.cpu().detach().numpy())
-            pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
+            pred_abundances = []
+            for i in range(len(initial_endmembers)):
+                pred_abundances.append(abundances[i, :, :])
             test_item_unmixing = test_fn_unmixing(training_data.gt_abundances, pred_abundances)
             test_scores_unmixing.append(test_item_unmixing)
 
@@ -604,12 +613,15 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
             # plotter.plot_abundance_maps(abundances, epoch)
 
             # Calculate RMSE error maps of abundance predictions
-            pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
+            pred_abundances = []
+            for i in range(len(initial_endmembers)):
+                pred_abundances.append(abundances[i, :, :])
+            # pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
             abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
             # plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
 
             gt = copy.deepcopy(training_data.gt_abundances)
-            for i in range(2):
+            for i in range(len(initial_endmembers)):
                 gt[i] = simulation.apply_circular_mask(np.expand_dims(gt[i] + 1e-6, axis=-1), h=w, w=h,
                                                        radius=constants.ASPECT_SWIR_equivalent_radius,
                                                        masking_value=np.nan)
