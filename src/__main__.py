@@ -85,7 +85,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -114,6 +114,39 @@ if __name__ == '__main__':
     if data_shape == 'VNIR_cube':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
 
+    # # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
+    # didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
+    # didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
+    # # TODO S and Q type asteroid mean spectra as endmembers, for the measured mixtures?
+
+    # # Load pyroxene and olivine spectra
+    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+
+    # Load pyroxene spectra
+    # wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
+    # wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
+    wls1, endmember1 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+    wls2, endmember2 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+    wls3, endmember3 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27"
+    endmembers = [endmember1, endmember2, endmember3]
+    wl_vectors = [wls1, wls2, wls3]
+
+    def prepare_endmember(em, wls):
+        # Interpolate the endmember spectra to ASPECT wavelengths
+        em, new_wls, _ = simulation.ASPECT_resampling(em, wls)
+
+        # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
+        em = utils.reflectance2SSA(em)
+
+        return em
+
+    for i in range(len(endmembers)):
+        endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
+
     # Simulated images of the Didymos system, by Penttilä et al.
     # training_data = nn.TrainingData(type='simulated_Didymos',
     #                                 filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
@@ -121,15 +154,12 @@ if __name__ == '__main__':
     training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
                                     filepath=Path(
                                         './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
-                                    data_shape=data_shape)
-
-    # TODO New training data: similar to the simulated cubes made with measured mineral mixtures, but now with
-    #  computational SSA mixtures of pyroxen spectra from RELAB. Could first be same sharp-edge blotches as before,
-    #  but at some point make smooth transitions for the mixing factor.
+                                    data_shape=data_shape,
+                                    endmembers=endmembers)
 
     bands = training_data.l
 
-    endmember_count = 2
+    endmember_count = len(endmembers)
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
@@ -150,39 +180,6 @@ if __name__ == '__main__':
     dec_params = {'band_count': common_params['bands'],
                   'endmember_count': common_params['endmember_count'],
                   'd_kernel_size': 1}
-
-    # Load endmember spectra, resample to ASPECT wavelengths, arrange into a list
-    didymos_wavelengths, didymos_reflectance = file_handling.load_Didymos_reflectance_spectrum(denoise=True)
-    didymos_reflectance, _, _ = simulation.ASPECT_resampling(didymos_reflectance, didymos_wavelengths)
-    # TODO S and Q type asteroid mean spectra as endmembers, for the measured mixtures?
-
-    # # Load pyroxene and olivine spectra
-    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
-    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
-
-    # Load pyroxene spectra
-    # wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
-    # wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
-    wls1, endmember1 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
-    wls2, endmember2 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
-    def prepare_endmembers(em1, em2, wls1, wls2):
-        # Interpolate the endmember spectra to ASPECT wavelengths
-        em1, new_wls, _ = simulation.ASPECT_resampling(em1, wls1)
-        em2, new_wls, _ = simulation.ASPECT_resampling(em2, wls2)
-
-        # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
-        em1 = utils.reflectance2SSA(em1)
-        em2 = utils.reflectance2SSA(em2)
-
-        return em1, em2
-
-    # pyroxene, olivine = prepare_endmembers(pyroxene, olivine, wls)
-    # endmembers = [pyroxene, olivine]
-
-    endmember1, endmember2 = prepare_endmembers(endmember1, endmember2, wls1, wls2)
-    endmembers = [endmember1, endmember2]
 
     # Build and train a neural network
     nn.train(training_data,
