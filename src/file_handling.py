@@ -342,7 +342,19 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', b
     return h, w, l, cube, wavelengths, FWHMs, gt_abundances
 
 
-def file_loader_simulated_Didymos_pyroxenes(frame_filepath, spectrum1_filepath, spectrum2_filepath):
+def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers):
+    """Load a frame of a simulated asteroid image, use that together with endmembers provided as parameter to generate
+    a synthetic spectral image. Abundance maps for the endmembers are generated with Perlin noise, using seed values for
+    repeatability.
+    :param frame_filepath:
+        Path to the frame used for brightness of the image.
+    :param endmembers:
+        List of endmember spectra used to create a simulated image. The spectra are assumed to be single-scattering
+        albedo, and they must have the same number of elements. Recommended to resample to ASPECT wavelengths before
+        sending them to this function
+    :return:
+        h, w, l, cube, wavelengths, FWHMs, gt_abundances
+    """
 
     # Load datacube simulated by Penttilä et al.
     cube, nir_wavelengths = load_mat_cube(frame_filepath, dark_correction=True)  # Dark correction assumes that target does not fill FOV
@@ -350,49 +362,53 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, spectrum1_filepath, 
     # Extract one frame from the image cube and normalize it so that maximum value is 1
     frame = cube[:, :, 0] / np.max(cube[:, :, 0])
 
+    # Check length of endmember list: must create that many abundance maps
+    num_ems = len(endmembers)
+    abundance_map_array = np.zeros(shape=(np.shape(frame)[0], np.shape(frame)[1], num_ems))
+
     # Create GT maps: generate Perlin noise image, subtract copy from 1, multiply both with thresholded brightness map
-    #TODO add perlin noise to env yml
+    for i in range(num_ems - 1):  # One less noise map than endmember, the final one will fill every pixel to sum to 1
+        noise = PerlinNoise(octaves=3, seed=i)  # Different seed for every map
+        xpix, ypix = np.shape(frame)[1], np.shape(frame)[0]
+        pic = [[noise([i / xpix, j / ypix]) for j in range(xpix)] for i in range(ypix)]
+        pic = np.asarray(pic) + 0.6
+        pic = pic / np.max(pic)
+        abundance_map = pic * (frame > 1e-20)
+        abundance_map_array[:, :, i] = abundance_map
 
-    noise = PerlinNoise(octaves=5, seed=42)
-    xpix, ypix = np.shape(frame)[1], np.shape(frame)[0]
-    pic = [[noise([i / xpix, j / ypix]) for j in range(xpix)] for i in range(ypix)]
-    pic = np.asarray(pic) + 1
-    pic = pic / np.max(pic)
+    abundance_map_array = abundance_map_array / np.max(np.sum(abundance_map_array, axis=2))
+    last_abundance_map = (1 - np.sum(abundance_map_array, axis=2)) * (frame > 1e-20)
+    abundance_map_array[:, :, -1] = last_abundance_map
 
-    abundance_map1 = pic * (frame > 1e-20)
-    abundance_map2 = (1 - np.copy(pic)) * (frame > 1e-20)
-    gt_abundances = [abundance_map1, abundance_map2]
+    gt_abundances = []
+    for i in range(num_ems):
+        gt_abundances.append(abundance_map_array[:, :, i])
 
-    # fig, axs = plt.subplots(1, 2)
-    # axs[0].imshow(abundance_map1)
-    # axs[1].imshow(abundance_map2)
+    # # Plot abundance maps and their sum
+    # fig, axs = plt.subplots(1, num_ems+1)
+    # for i in range(num_ems):
+    #     axs[i].imshow(gt_abundances[i])
+    # axs[i+1].imshow(np.sum(abundance_map_array, axis=2))
     # plt.show()
-
-    # Load spectra, resample to ASPECT wavelengths
-    wavelengths1, spectrum1 = load_RELAB_spectrum(spectrum1_filepath)
-    wavelengths2, spectrum2 = load_RELAB_spectrum(spectrum2_filepath)
-
-    spectrum1, _, FWHMs = simulation.ASPECT_resampling(spectrum1, wavelengths1)
-    spectrum2, ASPECT_wavelengths, FWHMs = simulation.ASPECT_resampling(spectrum2, wavelengths2)
-
-    spectrum1 = utils.reflectance2SSA(spectrum1)
-    spectrum2 = utils.reflectance2SSA(spectrum2)
 
     # Create empty image, populate each pixel with reflectance spectrum made as SSA mixture
     h = len(frame[:, 0])
     w = len(frame[0, :])
-    l = len(spectrum1)
+    l = len(endmembers[0])
     cube = np.zeros(shape=(h, w, l))
     for i in range(h):
         for j in range(w):
-            cube[i, j, :] = utils.SSA2reflectance(spectrum1 * abundance_map1[i, j] + spectrum2 * abundance_map2[i, j])
+            for k in range(num_ems):
+                cube[i, j, :] = cube[i, j, :] + endmembers[k] * gt_abundances[k][i, j]  # EMs are SSA, mix them linearly
+            cube[i, j, :] = utils.SSA2reflectance(cube[i, j, :])  # Convert SSA cube to reflectance
     for i in range(l):
         cube[:, :, i] = frame * cube[:, :, i]  # Introduce brightness variation
     # plt.figure()
-    # plt.plot(cube[200, 200, :])
+    # # plt.plot(cube[200, 200, :])
+    # plt.imshow(cube[:, :, 10])
     # plt.show()
 
-    return h, w, l, cube, ASPECT_wavelengths, FWHMs, gt_abundances
+    return h, w, l, cube, constants.ASPECT_wavelengths, constants.ASPECT_FWHMs, gt_abundances
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
