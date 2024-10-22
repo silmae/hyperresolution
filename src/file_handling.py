@@ -368,7 +368,7 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers):
 
     # Create GT maps: generate Perlin noise image, subtract copy from 1, multiply both with thresholded brightness map
     for i in range(num_ems - 1):  # One less noise map than endmember, the final one will fill every pixel to sum to 1
-        noise = PerlinNoise(octaves=3, seed=i)  # Different seed for every map
+        noise = PerlinNoise(octaves=4, seed=i+1)  # Different seed for every map, zero does not work so start at 1!
         xpix, ypix = np.shape(frame)[1], np.shape(frame)[0]
         pic = [[noise([i / xpix, j / ypix]) for j in range(xpix)] for i in range(ypix)]
         pic = np.asarray(pic) + 0.6
