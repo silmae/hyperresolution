@@ -80,12 +80,19 @@ if __name__ == '__main__':
     # plt.legend()
     # plt.show()
 
+    # # Load data received from David
+    # filelist = os.listdir('./datasets/Korda')
+    # datalist = []
+    # for filename in filelist:
+    #     datalist.append(np.load(Path('./datasets/Korda', filename), allow_pickle=True))
+    #
+    # print()
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -130,8 +137,10 @@ if __name__ == '__main__':
         'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
     wls2, endmember2 = file_handling.load_RELAB_spectrum(
         'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
-    wls3, endmember3 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27"
+    # wls3, endmember3 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27"
+    endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+
     endmembers = [endmember1, endmember2, endmember3]
     wl_vectors = [wls1, wls2, wls3]
 
@@ -146,6 +155,11 @@ if __name__ == '__main__':
 
     for i in range(len(endmembers)):
         endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
+
+    # plt.figure()
+    # for i in range(len(endmembers)):
+    #     plt.plot(endmembers[i])
+    # plt.show()
 
     # Simulated images of the Didymos system, by Penttilä et al.
     # training_data = nn.TrainingData(type='simulated_Didymos',
