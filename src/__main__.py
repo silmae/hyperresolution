@@ -27,14 +27,14 @@ if __name__ == '__main__':
     # log to stdout instead of stderr for nice coloring
     logging.basicConfig(stream=sys.stdout, level='INFO')
 
-    # Save logs into file
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)  # Setup the root logger.
-
-    now = datetime.now()
-    filename = now.strftime("%Y-%M-%d_%H:%M:%S")
-
-    logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
+    # # Save logs into file
+    # logger = logging.getLogger()
+    # logger.setLevel(logging.INFO)  # Setup the root logger.
+    #
+    # now = datetime.now()
+    # filename = now.strftime("%Y-%M-%d_%H:%M:%S")
+    #
+    # logger.addHandler(logging.FileHandler(f"{filename}.log", mode="w"))
 
     ############# SANDBOX ###############
 
@@ -177,79 +177,79 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.00025}
+                     'learning_rate': 0.000216}
 
     if data_shape == 'full_cube':
         band_count = bands
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 5,
+    enc_params = {'enc_layer_count': 6,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 512,
-                  'e_kernel_size': 3,
+                  'e_filter_count': 360,
+                  'e_kernel_size': 8,
                   'kernel_reduction': 0}
 
     dec_params = {'band_count': common_params['bands'],
                   'endmember_count': common_params['endmember_count'],
                   'd_kernel_size': 1}
 
-    # # Build and train a neural network
-    # nn.train(training_data,
-    #          enc_params=enc_params,
-    #          dec_params=dec_params,
-    #          common_params=common_params,
-    #          initial_endmembers=endmembers,
-    #          epochs=8000,
-    #          data_shape=data_shape,
-    #          prints=True,
-    #          plots=True)
+    # Build and train a neural network
+    nn.train(training_data,
+             enc_params=enc_params,
+             dec_params=dec_params,
+             common_params=common_params,
+             initial_endmembers=endmembers,
+             epochs=8000,
+             data_shape=data_shape,
+             prints=True,
+             plots=True)
 
     # ############### Hyperparameter optimization ##################
-    epochs = 3000
-
-    # Optuna without ray
-    def objective(trial):
-
-        common_params = {'bands': bands,
-                         'endmember_count': 3,  # For number of endmembers use an educated guess by a geologist
-                         'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-1, log=True)}
-
-        enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
-                      'band_count': band_count,
-                      'endmember_count': common_params['endmember_count'],
-                      'e_filter_count': trial.suggest_int('e_filter_count', 8, 640),
-                      'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 9),
-                      'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
-
-        dec_params = {'band_count': common_params['bands'],
-                      'd_endmember_count': common_params['endmember_count'],
-                      'd_kernel_size': 1}
-
-        try:
-            best_loss, best_test_loss, best_unmixing_test_loss, last_loss, last_test_loss, last_unmixing_test_loss = \
-                nn.train(training_data,
-                enc_params=enc_params,
-                dec_params=dec_params,
-                common_params=common_params,
-                epochs=epochs,
-                initial_endmembers=endmembers,
-                data_shape=data_shape,
-                plots=False,
-                prints=True)
-        except:
-            logging.info('Something went wrong, terminating and trying next configuration')
-            last_unmixing_test_loss = 1e5
-        return last_unmixing_test_loss
-
-
-    optuna.logging.enable_propagation()  # Propagate logs to the root logger.
-    optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
-
-    # Create a study object and optimize the objective function.
-    study = optuna.create_study(direction='minimize')
-    study.optimize(objective, n_trials=300)
-
-    # Print summary of optimization run into log
-    logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
+    # epochs = 3000
+    #
+    # # Optuna without ray
+    # def objective(trial):
+    #
+    #     common_params = {'bands': bands,
+    #                      'endmember_count': 3,  # For number of endmembers use an educated guess by a geologist
+    #                      'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-1, log=True)}
+    #
+    #     enc_params = {'enc_layer_count': trial.suggest_int('enc_layer_count', 1, 7),
+    #                   'band_count': band_count,
+    #                   'endmember_count': common_params['endmember_count'],
+    #                   'e_filter_count': trial.suggest_int('e_filter_count', 8, 640),
+    #                   'e_kernel_size': trial.suggest_int('e_kernel_size', 3, 9),
+    #                   'kernel_reduction': trial.suggest_int('kernel_reduction', 0, 4)}
+    #
+    #     dec_params = {'band_count': common_params['bands'],
+    #                   'd_endmember_count': common_params['endmember_count'],
+    #                   'd_kernel_size': 1}
+    #
+    #     try:
+    #         best_loss, best_test_loss, best_unmixing_test_loss, last_loss, last_test_loss, last_unmixing_test_loss = \
+    #             nn.train(training_data,
+    #             enc_params=enc_params,
+    #             dec_params=dec_params,
+    #             common_params=common_params,
+    #             epochs=epochs,
+    #             initial_endmembers=endmembers,
+    #             data_shape=data_shape,
+    #             plots=False,
+    #             prints=True)
+    #     except:
+    #         logging.info('Something went wrong, terminating and trying next configuration')
+    #         last_unmixing_test_loss = 1e5
+    #     return last_unmixing_test_loss
+    #
+    #
+    # optuna.logging.enable_propagation()  # Propagate logs to the root logger.
+    # optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
+    #
+    # # Create a study object and optimize the objective function.
+    # study = optuna.create_study(direction='minimize')
+    # study.optimize(objective, n_trials=300)
+    #
+    # # Print summary of optimization run into log
+    # logging.info(study.trials_dataframe(attrs=('value', 'params')).to_string())
