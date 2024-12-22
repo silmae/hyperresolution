@@ -177,14 +177,14 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.00025}
+                     'learning_rate': 0.000216}
 
     if data_shape == 'full_cube':
         band_count = bands
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 5,
+    enc_params = {'enc_layer_count': 6,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
                   'e_filter_count': 512,
