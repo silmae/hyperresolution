@@ -342,7 +342,7 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', b
     return h, w, l, cube, wavelengths, FWHMs, gt_abundances
 
 
-def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers):
+def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches=True):
     """Load a frame of a simulated asteroid image, use that together with endmembers provided as parameter to generate
     a synthetic spectral image. Abundance maps for the endmembers are generated with Perlin noise, using seed values for
     repeatability.
@@ -352,6 +352,8 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers):
         List of endmember spectra used to create a simulated image. The spectra are assumed to be single-scattering
         albedo, and they must have the same number of elements. Recommended to resample to ASPECT wavelengths before
         sending them to this function
+    :parem blotches:
+        Whether to include irregular blotches with sharp boundaries, to simulate ejecta
     :return:
         h, w, l, cube, wavelengths, FWHMs, gt_abundances
     """
@@ -377,6 +379,17 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers):
         abundance_map_array[:, :, i] = abundance_map
 
     abundance_map_array = abundance_map_array / np.max(np.sum(abundance_map_array, axis=2))
+
+    if blotches:
+        blotch_mask = np.asarray(cv.imread("datasets/masks/D1v5-10km-noiseless-40ms-blotches.png"))
+        blotch_mask = blotch_mask[:, :, 0] / np.max(blotch_mask[:, :, 0])
+        blotch_factor = 0.15
+        blotch_mask = blotch_mask * blotch_factor
+
+        for i in range(num_ems - 1):
+            abundance_map_array[:, :, i] = abundance_map_array[:, :, i] - blotch_mask
+        # gt_abundances[-1] = gt_abundances[-1] + (num_ems - 1) * blotch_mask
+
     last_abundance_map = (1 - np.sum(abundance_map_array, axis=2)) * (frame > 1e-20)
     abundance_map_array[:, :, -1] = last_abundance_map
 
