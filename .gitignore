@@ -6,3 +6,5 @@
 
 nn_history.png
 *.log
+enc_weights
+dec_weights
