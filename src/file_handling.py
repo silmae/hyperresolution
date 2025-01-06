@@ -342,7 +342,7 @@ def file_loader_simulated_Didymos(filepath, spectrum='Didymos', crater='px10', b
     return h, w, l, cube, wavelengths, FWHMs, gt_abundances
 
 
-def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches=True):
+def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches=False):
     """Load a frame of a simulated asteroid image, use that together with endmembers provided as parameter to generate
     a synthetic spectral image. Abundance maps for the endmembers are generated with Perlin noise, using seed values for
     repeatability.
@@ -370,12 +370,12 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches
 
     # Create GT maps: generate Perlin noise image, subtract copy from 1, multiply both with thresholded brightness map
     for i in range(num_ems - 1):  # One less noise map than endmember, the final one will fill every pixel to sum to 1
-        noise = PerlinNoise(octaves=4, seed=i+1)  # Different seed for every map, zero does not work so start at 1!
+        noise = PerlinNoise(octaves=4, seed=i+5 )  # Different seed for every map, zero does not work so start at 1!
         xpix, ypix = np.shape(frame)[1], np.shape(frame)[0]
         pic = [[noise([i / xpix, j / ypix]) for j in range(xpix)] for i in range(ypix)]
         pic = np.asarray(pic) + 0.6
         pic = pic / np.max(pic)
-        abundance_map = pic * (frame > 1e-20)
+        abundance_map = pic * (frame > 0)
         abundance_map_array[:, :, i] = abundance_map
 
     abundance_map_array = abundance_map_array / np.max(np.sum(abundance_map_array, axis=2))
@@ -390,7 +390,7 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches
             abundance_map_array[:, :, i] = abundance_map_array[:, :, i] - blotch_mask
         # gt_abundances[-1] = gt_abundances[-1] + (num_ems - 1) * blotch_mask
 
-    last_abundance_map = (1 - np.sum(abundance_map_array, axis=2)) * (frame > 1e-20)
+    last_abundance_map = (1 - np.sum(abundance_map_array, axis=2)) * (frame > 0)
     abundance_map_array[:, :, -1] = last_abundance_map
 
     gt_abundances = []
