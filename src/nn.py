@@ -367,7 +367,18 @@ def tensor_image_corrcoeff(y_true, y_pred):
     return spatial_correlation
 
 
-def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=True, prints=True, initial_endmembers=None, data_shape='actual'):
+def train(training_data,
+          enc_params,
+          dec_params,
+          common_params,
+          epochs=1,
+          plots=True,
+          prints=True,
+          initial_endmembers=None,
+          initial_enc_weights_path=None,
+          initial_dec_weights_path=None,
+          data_shape='actual',
+          save_weights=False):
     bands = training_data.l
     SWIR_cutoff_index = constants.ASPECT_SWIR_start_channel_index
 
@@ -387,6 +398,10 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
 
     # Build and initialize the encoder and decoder
     enc, dec = init_network(enc_params, dec_params, common_params, endmembers=np.copy(initial_endmembers))
+    if initial_enc_weights_path is not None:
+        enc.load_state_dict(torch.load(initial_enc_weights_path, weights_only=True), strict=False)
+    if initial_dec_weights_path is not None:
+        dec.load_state_dict(torch.load(initial_dec_weights_path, weights_only=True), strict=False)
 
     # Move network to GPU memory
     enc = enc.to(device)
@@ -573,6 +588,9 @@ def train(training_data, enc_params, dec_params, common_params, epochs=1, plots=
         if test_item_unmixing < best_unmixing_test_loss:
             best_unmixing_test_loss = test_item_unmixing
             best_unmixing_test_index = epoch
+            if save_weights:
+                torch.save(enc.state_dict(), Path('./new_enc_weights'))
+                torch.save(dec.state_dict(), Path('./new_dec_weights'))
 
         # early_stop_thresh = 50
         # if test_item < best_test_loss:
