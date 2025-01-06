@@ -165,11 +165,18 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='simulated_Didymos',
     #                                 filepath=Path('./datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
     #                                 data_shape=data_shape)
+    # training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
+    #                                 filepath=Path(
+    #                                     './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+    #                                 data_shape=data_shape,
+    #                                 endmembers=endmembers)
     training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
                                     filepath=Path(
-                                        './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+                                        './datasets/Didymos_simulated/AIS simulated data v5/D1D2v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape,
                                     endmembers=endmembers)
+    # D1v5-3km-noiseless-40ms.mat asteroid fills the frame
+    # D1D2v5-10km-noiseless-40ms.mat moon shadow on main
 
     bands = training_data.l
 
@@ -201,10 +208,26 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=8000,
+             epochs=4001,
              data_shape=data_shape,
              prints=True,
-             plots=True)
+             plots=True,
+             save_weights=False)
+
+    # Build and train a neural network, loading saved weights at the start
+    # common_params['learning_rate'] = common_params['learning_rate'] / 10  # Reduce learning rate
+    # nn.train(training_data,
+    #          enc_params=enc_params,
+    #          dec_params=dec_params,
+    #          common_params=common_params,
+    #          initial_endmembers=endmembers,
+    #          initial_enc_weights_path=Path('./enc_weights'),
+    #          initial_dec_weights_path=Path('./dec_weights'),
+    #          epochs=8000,
+    #          data_shape=data_shape,
+    #          prints=True,
+    #          plots=True,
+    #          save_weights=False)
 
     # ############### Hyperparameter optimization ##################
     # epochs = 3000
