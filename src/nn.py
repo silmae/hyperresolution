@@ -172,7 +172,7 @@ class Decoder(nn.Module):
 class TrainingData(Dataset):
     """Handles catering the training data from disk to NN."""
 
-    def __init__(self, type, filepath, data_shape='actual', endmembers=None):
+    def __init__(self, type, filepath, data_shape='actual', endmembers=None, no_abundance_gt=False):
 
         if type == 'DAWN_PDS3':
             h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Dawn_PDS3(filepath)
@@ -227,7 +227,12 @@ class TrainingData(Dataset):
             # Transpose the abundance maps to get matching dimensions with network predictions
             for index, abundance in enumerate(gt_abundances):
                 gt_abundances[index] = np.transpose(abundance)
-            self.gt_abundances = gt_abundances
+            if no_abundance_gt:
+                plotter.plot_abundance_maps(abundances=gt_abundances, epoch='ground_truth',
+                                            titles=['S', 'Q'])
+                gt_abundances = None
+
+        self.gt_abundances = gt_abundances
 
         if data_shape == 'actual':
             Y = np.zeros((2, input_cube.shape[0], input_cube.shape[1],
@@ -551,16 +556,17 @@ def train(training_data,
             test_score = test_fn(test_cube, final_pred, only_SWIR=False)
             test_item = test_score.item()
 
-            # Unmixing performance by comparing predicted abundance maps to ground truth ones
-            abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h,
-                                                        radius=constants.ASPECT_SWIR_equivalent_radius,
-                                                        masking_value=torch.nan)
-            abundances = np.squeeze(abundances.cpu().detach().numpy())
-            pred_abundances = []
-            for i in range(len(initial_endmembers)):
-                pred_abundances.append(abundances[i, :, :])
-            test_item_unmixing = test_fn_unmixing(training_data.gt_abundances, pred_abundances)
-            test_scores_unmixing.append(test_item_unmixing)
+            if training_data.gt_abundances is not None:
+                # Unmixing performance by comparing predicted abundance maps to ground truth ones
+                abundances = simulation.apply_circular_mask(enc_pred, h=w, w=h,
+                                                            radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                            masking_value=torch.nan)
+                abundances = np.squeeze(abundances.cpu().detach().numpy())
+                pred_abundances = []
+                for i in range(len(initial_endmembers)):
+                    pred_abundances.append(abundances[i, :, :])
+                test_item_unmixing = test_fn_unmixing(training_data.gt_abundances, pred_abundances)
+                test_scores_unmixing.append(test_item_unmixing)
 
             # Apply the mask, but a bit smaller than the SWIR FOV: the edges are discarded, because they have errors
             # from the decoder kernel operating on the masked values
@@ -574,7 +580,10 @@ def train(training_data,
         if prints:
             memory_usage = torch.cuda.memory_allocated() * (1024 ** -3)  # Fetch used memory in bytes and convert to GB
             sys.stdout.write('\r')
-            sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   test: {test_item_unmixing:.4f}   (GPU memory usage: {memory_usage:.2f} GB)")
+            if training_data.gt_abundances is not None:
+                sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   unmixing test: {test_item_unmixing:.4f}   (GPU memory usage: {memory_usage:.2f} GB)")
+            else:
+                sys.stdout.write(f"Epoch {epoch}/{n_epochs} loss: {loss_item:.4f}   reconstruction test: {test_item:.4f}   (GPU memory usage: {memory_usage:.2f} GB)")
 
         train_losses.append(loss_item)
         test_scores.append(test_item)
@@ -585,12 +594,13 @@ def train(training_data,
         if test_item < best_test_loss:
             best_loss = test_item
             best_test_index = epoch
-        if test_item_unmixing < best_unmixing_test_loss:
-            best_unmixing_test_loss = test_item_unmixing
-            best_unmixing_test_index = epoch
-            if save_weights:
-                torch.save(enc.state_dict(), Path('./new_enc_weights'))
-                torch.save(dec.state_dict(), Path('./new_dec_weights'))
+        if training_data.gt_abundances is not None:
+            if test_item_unmixing < best_unmixing_test_loss:
+                best_unmixing_test_loss = test_item_unmixing
+                best_unmixing_test_index = epoch
+                if save_weights:
+                    torch.save(enc.state_dict(), Path('./new_enc_weights'))
+                    torch.save(dec.state_dict(), Path('./new_dec_weights'))
 
         # early_stop_thresh = 50
         # if test_item < best_test_loss:
@@ -609,6 +619,8 @@ def train(training_data,
                 endmembers = dec.layers[-1].weight.data.detach().cpu().numpy()
                 # Retrieve endmember spectra by summing the weights of each kernel
                 endmembers = np.sum(np.sum(endmembers, axis=-1), axis=-1)  # sum over both spatial axes
+                for i in range(endmembers.shape[0]):  # Convert from SSA to reflectance
+                    endmembers[i, :] = utils.SSA2reflectance(endmembers[i, :])
                 plotter.plot_endmembers(endmembers, epoch)
 
             # Plot brightness map
@@ -630,21 +642,23 @@ def train(training_data,
             abundances = np.squeeze(abundances.cpu().detach().numpy())
             # plotter.plot_abundance_maps(abundances, epoch)
 
-            # Calculate RMSE error maps of abundance predictions
             pred_abundances = []
             for i in range(len(initial_endmembers)):
                 pred_abundances.append(abundances[i, :, :])
-            # pred_abundances = [abundances[0, :, :], abundances[1, :, :]]
-            abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
-            # plotter.plot_abundance_maps(abundance_error_maps, epoch=f'{epoch}_RMSE')
 
-            gt = copy.deepcopy(training_data.gt_abundances)
-            for i in range(len(initial_endmembers)):
-                gt[i] = simulation.apply_circular_mask(np.expand_dims(gt[i] + 1e-6, axis=-1), h=w, w=h,
-                                                       radius=constants.ASPECT_SWIR_equivalent_radius,
-                                                       masking_value=np.nan)
-            plotter.plot_abundance_maps_with_gt(pred_abundances, gt, abundance_error_maps, epoch)
-            del gt
+            if training_data.gt_abundances is None:
+                plotter.plot_abundance_maps(pred_abundances, epoch, titles=['Orthopyroxene', 'Clinopyroxene', 'Olivine'])
+            else:
+                # Calculate RMSE error maps of abundance predictions
+                abundance_error_maps = test_fn_unmixing(training_data.gt_abundances, pred_abundances, return_maps=True)
+
+                gt = copy.deepcopy(training_data.gt_abundances)
+                for i in range(len(initial_endmembers)):
+                    gt[i] = simulation.apply_circular_mask(np.expand_dims(gt[i] + 1e-6, axis=-1), h=w, w=h,
+                                                           radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                           masking_value=np.nan)
+                plotter.plot_abundance_maps_with_gt(pred_abundances, gt, abundance_error_maps, epoch)
+                del gt
 
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
@@ -737,15 +751,26 @@ def train(training_data,
             plt.savefig(path, dpi=300)
             plt.close(fig)
 
-            plotter.plot_nn_train_history(train_loss=train_losses,
-                                          best_epoch_idx=best_index,
-                                          test_scores=test_scores_unmixing,
-                                          best_test_epoch_idx=best_unmixing_test_index,
-                                          file_name='figures/nn_history',
-                                          log_y=True)
+            if training_data.gt_abundances is None:
+                plotter.plot_nn_train_history(train_loss=train_losses,
+                                              best_epoch_idx=best_index,
+                                              test_scores=test_scores,
+                                              best_test_epoch_idx=best_test_index,
+                                              file_name='figures/nn_history',
+                                              log_y=True)
+            else:
+                plotter.plot_nn_train_history(train_loss=train_losses,
+                                              best_epoch_idx=best_index,
+                                              test_scores=test_scores_unmixing,
+                                              best_test_epoch_idx=best_unmixing_test_index,
+                                              file_name='figures/nn_history',
+                                              log_y=True)
 
         # Delete some stuff to free up GPU memory
-        del loss, loss_item, test_score, test_item, test_item_unmixing, final_pred, enc_pred, abundances, pred_abundances
+        if training_data.gt_abundances is None:
+            del loss, loss_item, test_score, test_item, final_pred, enc_pred
+        else:
+            del loss, loss_item, test_score, test_item, test_item_unmixing, final_pred, enc_pred, abundances, pred_abundances
         torch.cuda.empty_cache()
         # Run garbage collection
         gc.collect()
