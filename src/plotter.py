@@ -259,35 +259,22 @@ def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, 
     plt.close(fig)
 
 
-def plot_abundance_maps(abundances, epoch, log_scale=False):
+def plot_abundance_maps(abundances, epoch, log_scale=False, titles=None):
 
-    # Sorry about the next lines, can't be bothered to think about this
-    count = abundances.shape[0]
-    if count <= 2:
-        n_row = 1
-        n_col = 2
-    elif count <= 4:
-        n_row = 2
-        n_col = 2
-    elif count <= 6:
-        n_row = 2
-        n_col = 3
-    elif count <= 9:
-        n_row = 3
-        n_col = 3
-    else:
-        n_row = 3
-        n_col = 4
+    count = len(abundances)
+    n_col = count
+    n_row = 1
 
     fig, axs = plt.subplots(n_row, n_col, layout='constrained')  # , figsize=(12, 12))
     axs = axs.flatten()
     for i in range(count):
         if log_scale:
-            im = axs[i].imshow(abundances[i, :, :], norm=colors.LogNorm(vmin=1e-3, vmax=10))
+            im = axs[i].imshow(abundances[i], norm=colors.LogNorm(vmin=1e-3, vmax=10))
         else:
-            im = axs[i].imshow(abundances[i, :, :], vmin=0, vmax=1)
-            mid_point_abundance = abundances[i, int(constants.ASPECT_NIR_channel_shape[0] / 2), int(constants.ASPECT_NIR_channel_shape[1] / 2)]
-            axs[i].title.set_text(f'Middle point: {mid_point_abundance:.2f}')
+            im = axs[i].imshow(abundances[i], vmin=0, vmax=1)
+            # mid_point_abundance = abundances[i, int(constants.ASPECT_NIR_channel_shape[0] / 2), int(constants.ASPECT_NIR_channel_shape[1] / 2)]
+            if titles is not None:
+                axs[i].title.set_text(f'{titles[i]}')
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
     fig.colorbar(im, ax=axs.ravel().tolist())
