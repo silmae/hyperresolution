@@ -133,16 +133,22 @@ if __name__ == '__main__':
     # Load pyroxene spectra
     # wls, endmember1 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27 (EFW13-4: 100% cpx, trCrist) 0 - 100 μm"
     # wls, endmember2 = file_handling.load_RELAB_spectrum('datasets/RELAB_pyroxenes/c1dl13.tab')  # "Clinopyroxene- Wo 8 En 46 Fs 46 (E40-1: 99.5% cpx, 0.5% glass, Crist) 0 - 100 μm"
-    wls1, endmember1 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
-    wls2, endmember2 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+    # wls1, endmember1 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+    # wls2, endmember2 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
     # wls3, endmember3 = file_handling.load_RELAB_spectrum(
     #     'datasets/RELAB_pyroxenes/c1dl10.tab')  # "Clinopyroxene- Wo 10 En 63 Fs 27"
-    endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    # endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
-    endmembers = [endmember1, endmember2, endmember3]
-    wl_vectors = [wls1, wls2, wls3]
+    # endmembers = [endmember1, endmember2, endmember3]
+    # wl_vectors = [wls1, wls2, wls3]
+
+    # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
+    em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
+    em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
+    endmembers = [em_s / 5, em_q / 5]
+    wl_vectors = [wls_s, wls_q]
 
     def prepare_endmember(em, wls):
         # Interpolate the endmember spectra to ASPECT wavelengths
@@ -174,9 +180,63 @@ if __name__ == '__main__':
                                     filepath=Path(
                                         './datasets/Didymos_simulated/AIS simulated data v5/D1D2v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape,
-                                    endmembers=endmembers)
+                                    endmembers=endmembers,
+                                    no_abundance_gt=True)
     # D1v5-3km-noiseless-40ms.mat asteroid fills the frame
     # D1D2v5-10km-noiseless-40ms.mat moon shadow on main
+
+    # mineral_spectra = endmembers
+    # # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
+    # em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
+    # em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
+    # endmembers = [em_s, em_q]
+    # wl_vectors = [wls_s, wls_q]
+
+    # # Load pyroxene and olivine spectra
+    # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
+    # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    # endmembers = [pyroxene, olivine]
+    # wl_vectors = [wls, wls]
+    wls1, endmember1 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+    wls2, endmember2 = file_handling.load_RELAB_spectrum(
+        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+    endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+
+    endmembers = [endmember1, endmember2, endmember3]
+    wl_vectors = [wls1, wls2, wls3]
+
+    # plt.figure()
+    # # plt.plot(wls_s, em_s)
+    # # plt.plot(wls_q, em_q)
+    # plt.plot(pyroxene)
+    # plt.plot(olivine)
+    # plt.show()
+    for i in range(len(endmembers)):
+        # endmember = endmembers[i] / 10
+        # endmember = endmember / np.max(endmember)
+        # endmember = endmembers[i] / np.max(endmembers[i])
+        endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
+
+    # mixture = mineral_spectra[0]*0.5 + mineral_spectra[1]*0.5# + mineral_spectra[2]*0.33
+    # # mixture = utils.SSA2reflectance(mixture)
+    #
+    # plt.figure()
+    # plt.plot(mixture / np.max(mixture))
+    # mixing_factors = np.linspace(0, 1, 5)
+    # # endmembers[0] = utils.SSA2reflectance(endmembers[0])
+    # # endmembers[1] = utils.SSA2reflectance(endmembers[1])
+    # for factor in mixing_factors:
+    #     unmixed = factor*endmembers[0] + (1-factor)*endmembers[1]
+    #     # unmixed = utils.SSA2reflectance(unmixed)
+    #     plt.plot(unmixed / np.max(unmixed))
+    # plt.show()
+    #
+    # plt.figure()
+    # plt.plot(endmembers[0])
+    # plt.plot(endmembers[1])
+    # plt.show()
+
 
     bands = training_data.l
 
@@ -184,7 +244,7 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.000216}
+                     'learning_rate': 0.0000216}
 
     if data_shape == 'full_cube':
         band_count = bands
