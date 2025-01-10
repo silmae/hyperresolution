@@ -147,8 +147,18 @@ if __name__ == '__main__':
     # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
     em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
     em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
+    # Compensate for phase reddening: remove linear continuum from both spectra my multiplying with a line
+    x = np.linspace(0, 1, len(em_s))
+    s_slope, s_offset = -0.19, 0.5
+    q_slope, q_offset = -0.06, 0.5
+    em_s = em_s * (x * s_slope + s_offset)
+    em_q = em_q * (x * q_slope + q_offset)
     endmembers = [em_s / 5, em_q / 5]
     wl_vectors = [wls_s, wls_q]
+    # plt.figure()
+    # plt.plot(em_s)
+    # plt.plot(em_q)
+    # plt.show()
 
     def prepare_endmember(em, wls):
         # Interpolate the endmember spectra to ASPECT wavelengths
@@ -244,17 +254,17 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.0000216}
+                     'learning_rate': 0.000216}
 
     if data_shape == 'full_cube':
         band_count = bands
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 6,
+    enc_params = {'enc_layer_count': 7,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 512,
+                  'e_filter_count': 1024,
                   'e_kernel_size': 3,
                   'kernel_reduction': 0}
 
@@ -268,7 +278,7 @@ if __name__ == '__main__':
              dec_params=dec_params,
              common_params=common_params,
              initial_endmembers=endmembers,
-             epochs=4001,
+             epochs=8000,
              data_shape=data_shape,
              prints=True,
              plots=True,
