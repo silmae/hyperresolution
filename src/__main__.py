@@ -88,6 +88,18 @@ if __name__ == '__main__':
     #
     # print()
 
+    foo = file_handling.load_h5(filename='Itokawa_data.h5', subfolder='./datasets/Korda/')
+    data = foo['data']
+    wl = data[0, :]
+    spectrum1 = data[2000, :]
+    spectrum2 = data[200, :]
+    plt.figure()
+    plt.plot(wl, spectrum1)
+    plt.plot(wl, spectrum2)
+    # plt.plot(oi2)
+    plt.show()
+    bar=0
+
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

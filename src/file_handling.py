@@ -10,10 +10,24 @@ import spectral.io.envi as envi
 import cv2 as cv
 from planetaryimage import CubeFile
 from perlin_noise import PerlinNoise
+import h5py
 
 from src import constants
 from src import utils
 from src import simulation
+
+
+def load_h5(filename: str, subfolder: str = "", list_keys = None) -> h5py.File:
+    """From https://github.com/Sirrah91/Asteroid-spectra/"""
+
+    filename = subfolder + filename
+
+    if list_keys is None:
+        print("Do not forget to close the file.")
+        return h5py.File(filename, "r")
+
+    with h5py.File(filename, "r") as f:
+        return {key: np.array(f[key]) for key in list_keys if key in f.keys()}
 
 
 def load_spectral_csv(filepath, convert2micron=True):
