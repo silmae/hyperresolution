@@ -92,7 +92,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     #                                 endmembers=endmembers)
     training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
                                     filepath=Path(
-                                        './datasets/Didymos_simulated/AIS simulated data v5/D1D2v5-10km-noiseless-40ms.mat'),
+                                        './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
                                     data_shape=data_shape,
                                     endmembers=endmembers,
                                     no_abundance_gt=True)
@@ -207,10 +207,16 @@ if __name__ == '__main__':
     # olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
     # endmembers = [pyroxene, olivine]
     # wl_vectors = [wls, wls]
+    # wls1, endmember1 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+    # wls2, endmember2 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+
+    # Following Wo-En-Fs ratios approximately according to Korda et al.: https://doi.org/10.1051/0004-6361/202346290
     wls1, endmember1 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl28a.tab')  # "Orthopyroxene- En 25 Fs 75 (C)"
+        'datasets/RELAB_pyroxenes/c1dl27a.tab')  # "Orthopyroxene- En 80 Fs 20 (C)"
     wls2, endmember2 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
+        'datasets/RELAB_pyroxenes/c1dl43a.tab')  # "Clinopyroxene- Wo 50 En 40 Fs 10"
     endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
 
     endmembers = [endmember1, endmember2, endmember3]
@@ -254,7 +260,7 @@ if __name__ == '__main__':
 
     common_params = {'bands': bands,
                      'endmember_count': endmember_count,
-                     'learning_rate': 0.000216}
+                     'learning_rate': 0.000416}
 
     if data_shape == 'full_cube':
         band_count = bands
