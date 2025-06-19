@@ -5,6 +5,8 @@ import csv
 
 import numpy as np
 import scipy.io  # for loading Matlab matrices
+from scipy import interpolate
+from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 import spectral.io.envi as envi
 import cv2 as cv
@@ -436,6 +438,101 @@ def file_loader_simulated_Didymos_pyroxenes(frame_filepath, endmembers, blotches
     # plt.show()
 
     return h, w, l, cube, constants.ASPECT_wavelengths, constants.ASPECT_FWHMs, gt_abundances
+
+
+def file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz'):
+    """Load a set of Itokawa spectra from the NIRS instrument, resampled onto a regular grid in both spatial and
+    spectra direction by David Korda (for article https://doi.org/10.1051/0004-6361/202346290). Form a spectral image
+    from the spectra using the coordinates of each spectrum, pick an area with the least amount of holes, then fill
+    any empty pixels with interpolation. Interpolate in the spatial directions to get an image that matches the ASPECT
+    pixel counts. """
+
+    file = np.load(path, allow_pickle=True)
+    spectra = file['spectra']
+    metadata = file['metadata']
+    metadata_key = file['metadata key']
+    wavelengths = file['wavelengths']
+    lon = metadata[:, 0]
+    lat = metadata[:, 1]
+
+    def create_image_from_coordinates(data_points, latitudes, longitudes):
+        # Normalize latitude and longitude to fit into image dimensions
+        lat_min, lat_max = min(latitudes), max(latitudes)
+        lon_min, lon_max = min(longitudes), max(longitudes)
+
+        img_height, img_width = int(lat_max - lat_min), int(lon_max - lon_min)  # Define the size of the image
+        img = np.zeros((img_height, img_width, len(data_points[0, :])))
+
+        for i, (lat, lon) in enumerate(zip(latitudes, longitudes)):
+            # Normalize coordinates
+            x = int((lon - lon_min) / (lon_max - lon_min) * (img_width - 1))
+            y = int((lat - lat_min) / (lat_max - lat_min) * (img_height - 1))
+
+            # Assign data point value to the corresponding pixel
+            img[y, x] = data_points[i, :]
+
+        # Flip image and coordinates so, that north is up (negative latitudes are down)
+        img = np.flip(img, axis=0)
+        latitudes = np.flip(latitudes)
+
+        return img, latitudes, longitudes
+
+    image, latitudes, longitudes = create_image_from_coordinates(spectra, lat, lon)
+
+    # # # Use the following plot to select an area with the least amount of missing pixels
+    # # Latitude and longitude bounds
+    # # lat_min, lat_max = -47, 69
+    # # lon_min, lon_max = 0, 360
+    #
+    # # Display the image
+    # channel = 60
+    # plt.imshow(image[:, :, channel], cmap='jet')#, extent=[lon_min, lon_max, lat_max, lat_min])
+    # plt.title(f'Itokawa reflectance at {wavelengths[channel]} nm')
+    # # plt.xticks(np.linspace(0, 360, 10))
+    # # plt.yticks(np.linspace(69, -47, 5))
+    # # plt.ylabel('Latitude')
+    # # plt.xlabel('Longitude')
+    # plt.colorbar()
+    # plt.show()
+
+    ymin, ymax = 41, 81
+    xmin, xmax = 234, 276
+
+    # The image has some missing pixels, shown as zeros in all wl channels: convert zeros to nans, then interpolate
+    # the nan values separately for each channel
+    # (code from https://stackoverflow.com/questions/37662180/interpolate-missing-values-2d-python/39596856#39596856)
+    image = image[ymin:ymax, xmin:xmax, :]
+    image[image == 0] = np.nan
+    interp_image = np.zeros(np.shape(image))
+    for channel in range(len(image[0, 0, :])):
+        array = image[:, :, channel]
+        x = np.arange(0, array.shape[1])
+        y = np.arange(0, array.shape[0])
+        # mask invalid values
+        array = np.ma.masked_invalid(array)
+        xx, yy = np.meshgrid(x, y)
+        # get only the valid values
+        x1 = xx[~array.mask]
+        y1 = yy[~array.mask]
+        newarr = array[~array.mask]
+
+        GD1 = interpolate.griddata((x1, y1), newarr.ravel(),
+                                   (xx, yy),
+                                   method='cubic')
+        interp_image[:, :, channel] = GD1
+
+    # plt.figure()
+    # plt.imshow(interp_image[:,:,10])
+    # plt.show()
+    image = interp_image
+    # The data is normalized so that reflectance at 1500 nm is 1. Itokawa geometric albedo is 0.23 ± 0.02
+    # (Lee and Ishiguro, https://doi.org/10.1051/0004-6361/201832721, unfortunately they do not give an associated wl
+    # for their result). Approximate that the I/F at 1500 nm is 0.23 --> multiply each spectrum by 0.23 to get rid of
+    # the normalization. This means that there is no albedo variation in the end result.
+    image = image * 0.23
+    # plt.figure()
+    # plt.plot(image[0,0,:])
+    # plt.show()
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
