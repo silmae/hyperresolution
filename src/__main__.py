@@ -7,6 +7,7 @@ from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import torch
 from planetaryimage import CubeFile
 
@@ -81,24 +82,124 @@ if __name__ == '__main__':
     # plt.show()
 
     # # Load data received from David
-    # filelist = os.listdir('./datasets/Korda')
-    # datalist = []
-    # for filename in filelist:
-    #     datalist.append(np.load(Path('./datasets/Korda', filename), allow_pickle=True))
-    #
-    # print()
+    file_handling.file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz')
 
-    foo = file_handling.load_h5(filename='Itokawa_data.h5', subfolder='./datasets/Korda/')
-    data = foo['data']
-    wl = data[0, :]
-    spectrum1 = data[2000, :]
-    spectrum2 = data[200, :]
-    plt.figure()
-    plt.plot(wl, spectrum1)
-    plt.plot(wl, spectrum2)
-    # plt.plot(oi2)
-    plt.show()
-    bar=0
+    #
+    # def safe_arange(start: float, stop: float or None = None, step: float = 1.0, dtype: type = float,
+    #                 endpoint: bool = False, linspace_like: bool = True) -> np.ndarray:
+    #     if stop is None:
+    #         start, stop = 0.0, start
+    #
+    #     if linspace_like:
+    #         n = int(np.round((stop - start) / step)) + int(endpoint == True)
+    #         return np.linspace(start, stop, n, endpoint=endpoint, dtype=dtype)
+    #
+    #     return np.array(step * np.arange(start / step, stop / step), dtype=dtype)
+    #
+    # def plot_surface_spectra(y_pred: np.ndarray) -> None:
+    #
+    #     font_size_axis = 36
+    #
+    #     cmap = "viridis_r"
+    #     vmin, vmax = 0.8, 0.9
+    #     alpha = 0.4
+    #     s = 10.
+    #
+    #     xticks, yticks = safe_arange(0., 360., 10., endpoint=True), safe_arange(-90., 90., 10., endpoint=True)
+    #     left, right = 0.0, 360.
+    #     bottom, top = -90., 90.
+    #
+    #     cticks, ctickslabel = safe_arange(vmin, vmax, .1, endpoint=True), safe_arange(vmin, vmax, .1, endpoint=True)
+    #
+    #     # if "Itokawa" in filename:
+    #     background_image = "./datasets/Korda/new_itokawa_mosaic.jpg"
+    #     name = "Itokawa"
+    #
+    #
+    #     # indices_file = np.load("".join((_path_data, filename)), allow_pickle=True)
+    #     indices_file = np.load('./datasets/Korda/Itokawa-denoised-norm.npz', allow_pickle=True)
+    #     indices = np.array(indices_file["metadata"][:, :2], dtype=float)
+    #
+    #     # mean_of_predictions = np.mean(y_pred, axis=0) * 100.
+    #
+    #     # if what_type == "taxonomy":
+    #     #     _, most_probable_classes_1 = get_most_probable_classes()
+    #     #     _, most_probable_classes_2 = get_most_winning_classes()
+    #     #     most_probable_classes = stack((most_probable_classes_1,
+    #     #                                    np.setdiff1d(most_probable_classes_2, most_probable_classes_1)))
+    #     #     n_probable_classes = len(most_probable_classes)
+    #     #
+    #     #     titles = ["".join((name, " ", classes2[most_probable_classes[i]],
+    #     #                        "-type predictions")) for i in range(n_probable_classes)]
+    #     #
+    #     #     labels = [classes2[most_probable_classes[i]] for i in range(n_probable_classes)]
+    #     #
+    #     # elif what_type == "composition":
+    #     #     # set titles (this should work well)
+    #     #
+    #     #     titles_all = [mineral_names] + endmember_names
+    #     #     titles_all = flatten_list(titles_all)[used_indices(minerals_used, endmembers_used)]
+    #     #     # titles_all = flatten_list(titles_all)[unique_indices(minerals_used, endmembers_used, all_minerals=True)]
+    #     #
+    #     #     most_probable_classes = unique_indices(minerals_used, endmembers_used, return_digits=True)
+    #     #     labels = titles_all[most_probable_classes]
+    #     #
+    #     #     n_probable_classes = len(most_probable_classes)
+    #     #
+    #     #     print("\nSelected mineralogy:")
+    #     #     for i, cls in enumerate(most_probable_classes):
+    #     #         print("{:14s} {:5.2f}%".format(labels[i], round(mean_of_predictions[cls], 2)))
+    #     #
+    #     #     titles = ["".join((name, " ", labels[i], " predictions"))
+    #     #               for i in range(n_probable_classes)]
+    #     #
+    #     # else:
+    #     #     raise ValueError('"what_type" must be either "taxonomy" or "composition"')
+    #
+    #     # Color code dominant classes / labels
+    #     # probability_values = np.transpose(np.array([y_pred[:, most_probable_classes[i]]
+    #     #                                             for i in range(n_probable_classes)]))
+    #
+    #
+    #     # Plot the coverage map using latitude and longitude from HB
+    #     img = plt.imread(background_image)  # Background image
+    #     fig, ax = plt.subplots(figsize=(30, 25))
+    #     ax.imshow(img, cmap="gray", extent=[0, 360, -90, 90], alpha=1)
+    #
+    #     # Draw the predictions map
+    #     values = y_pred[:, 20]
+    #     im = ax.scatter(indices[:, 0], indices[:, 1], s=s, c=values,
+    #                     marker=",", cmap='jet', vmin=vmin, vmax=vmax, alpha=alpha)
+    #
+    #     ax.set_xticks(xticks)
+    #     ax.set_yticks(yticks)
+    #     plt.xticks(rotation=90., fontsize=font_size_axis - 4)
+    #     plt.yticks(fontsize=font_size_axis - 4)
+    #
+    #     ax.grid()
+    #
+    #     ax.set_xlabel("Longitude (deg)", fontsize=font_size_axis)  # \N{DEGREE SIGN}
+    #     ax.set_ylabel("Latitude (deg)", fontsize=font_size_axis)
+    #     # ax.set_title(titles[i], fontsize=font_size_axis + 4)
+    #
+    #     ax.set_xlim(left=left, right=right)
+    #     ax.set_ylim(bottom=bottom, top=top)
+    #
+    #     # divider = make_axes_locatable(ax)
+    #     # cax = divider.append_axes(**cbar_kwargs)
+    #     # cbar = plt.colorbar(im, cax=cax)
+    #     # cax = divider.append_axes("bottom", size="10%", pad=1.35)
+    #     cbar = plt.colorbar(im, orientation="horizontal")#, cax=cax)
+    #
+    #     cbar.set_ticks(cticks)
+    #     cbar.set_ticklabels(ctickslabel)
+    #     cbar.ax.tick_params(labelsize=font_size_axis - 4)
+    #
+    #     plt.draw()
+    #     plt.tight_layout()
+    #     plt.show()
+    #
+    # plot_surface_spectra(spectra)
 
     ############################
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
