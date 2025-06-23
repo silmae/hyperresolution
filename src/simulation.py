@@ -47,7 +47,7 @@ def ASPECT_resampling(cube: np.ndarray, wavelengths, FWHMs=None):
     return cube_resampled, ASPECT_wavelengths, ASPECT_FWHMs
 
 
-def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True, data_shape='actual'):
+def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2refl=True, smoothing=True, vignetting=True, spectral_resampling=True, data_shape='actual'):
     """Take a spectral image and make it look like data from Milani's ASPECT's NIR and SWIR. Resamples
     the spectra to match ASPECT wavelengths given in constants.py, converts radiances of the original into I/F if
     specified in parameters. Calculates a mean spectrum from an area corresponding to SWIR FOV, cuts the shorter
@@ -63,6 +63,8 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
         Whether radiances of the input cube are converted to reflectances (to I/F)
     :param smoothing:
         Whether the spectra of the input cube image should go through outlier removal and Gaussian smoothing
+    :param spectral_resampling:
+
     :param vignetting:
         Whether a vignette is applied on the SWIR spectral image before it is averaged to get a single spectrum
     :param datashape: 'actual' or 'full_cube' or 'VNIR_cube'
@@ -101,7 +103,8 @@ def ASPECT_NIR_SWIR_from_cube(cube: np.ndarray, wavelengths, FWHMs, convert_rad2
 
     # Resample spectra to resemble ASPECT data
     # if not wavelengths == constants.ASPECT_wavelengths:
-    cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
+    if spectral_resampling:
+        cube, wavelengths, FWHMs = ASPECT_resampling(cube, wavelengths, FWHMs)
 
     # Convert radiances to I/F
     if convert_rad2refl:
@@ -176,6 +179,8 @@ def cube2ASPECT_data(cube: np.ndarray, vignetting=True):
         Image cube with combined wavelengths range of the VIS and NIR modules and spatial dimensions of NIR, SWIR point
         spectrum, and full length image cube with spatial dimensions of NIR
     """
+    height, width = cube.shape[0]*10, cube.shape[1]*10
+    cube = resize_image_cube(cube, height, width)
 
     # Crop the image to aspect ratio where one side is the larger of NIR FOV and one side is SWIR FOV
     aspect_ratio = max(constants.ASPECT_NIR_FOV) / constants.ASPECT_SWIR_FOV
@@ -376,8 +381,12 @@ def crop2aspect_ratio(cube, aspect_ratio=1, keep_dim=None):
         h = orig_h
         w = int(orig_h * aspect_ratio)
         cube = cut_vertically(cube, w)
-    else:
+    elif orig_h > int(orig_w * aspect_ratio) and keep_dim != 0:
         h = int(orig_w * aspect_ratio)
+        w = orig_w
+        cube = cut_horizontally(cube, h)
+    else:  # This takes care of cases where the h and w values are too close together to do the above
+        h = int(orig_w / aspect_ratio)
         w = orig_w
         cube = cut_horizontally(cube, h)
 
