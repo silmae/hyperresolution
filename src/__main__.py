@@ -81,8 +81,8 @@ if __name__ == '__main__':
     # plt.legend()
     # plt.show()
 
-    # # Load data received from David
-    file_handling.file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz')
+    # # # Load data received from David
+    # file_handling.file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz')
 
     #
     # def safe_arange(start: float, stop: float or None = None, step: float = 1.0, dtype: type = float,
@@ -257,33 +257,37 @@ if __name__ == '__main__':
     # endmembers = [endmember1, endmember2, endmember3]
     # wl_vectors = [wls1, wls2, wls3]
 
-    # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
-    em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
-    em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
-    # Compensate for phase reddening: remove linear continuum from both spectra my multiplying with a line
-    x = np.linspace(0, 1, len(em_s))
-    s_slope, s_offset = -0.19, 0.5
-    q_slope, q_offset = -0.06, 0.5
-    em_s = em_s * (x * s_slope + s_offset)
-    em_q = em_q * (x * q_slope + q_offset)
-    endmembers = [em_s / 5, em_q / 5]
-    wl_vectors = [wls_s, wls_q]
-    # plt.figure()
-    # plt.plot(em_s)
-    # plt.plot(em_q)
-    # plt.show()
+    # # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
+    # em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
+    # em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
+    # # Compensate for phase reddening: remove linear continuum from both spectra my multiplying with a line
+    # x = np.linspace(0, 1, len(em_s))
+    # s_slope, s_offset = -0.19, 0.5
+    # q_slope, q_offset = -0.06, 0.5
+    # em_s = em_s * (x * s_slope + s_offset)
+    # em_q = em_q * (x * q_slope + q_offset)
+    # endmembers = [em_s / 5, em_q / 5]
+    # wl_vectors = [wls_s, wls_q]
+    # # plt.figure()
+    # # plt.plot(em_s)
+    # # plt.plot(em_q)
+    # # plt.show()
 
-    def prepare_endmember(em, wls):
-        # Interpolate the endmember spectra to ASPECT wavelengths
-        em, new_wls, _ = simulation.ASPECT_resampling(em, wls)
+    def prepare_endmember(em, wls, type='ASPECT'):
+        if type == 'ASPECT':
+            # Interpolate the endmember spectra to ASPECT wavelengths
+            em, new_wls, _ = simulation.ASPECT_resampling(em, wls)
+        elif type == 'Itokawa':
+            # Interpolate to resampled Itokawa NIRS wavelengths
+            em = simulation.resample_spectrum(em, wls, new_wls=constants.Itokawa_wavelengths)
 
         # Convert endmembers from reflectances to single-scattering albedos: mixing should be more linear in this space
         em = utils.reflectance2SSA(em)
 
         return em
 
-    for i in range(len(endmembers)):
-        endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
+    # for i in range(len(endmembers)):
+    #     endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
 
     # plt.figure()
     # for i in range(len(endmembers)):
@@ -299,21 +303,28 @@ if __name__ == '__main__':
     #                                     './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
     #                                 data_shape=data_shape,
     #                                 endmembers=endmembers)
-    training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
-                                    filepath=Path(
-                                        './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
-                                    data_shape=data_shape,
-                                    endmembers=endmembers,
-                                    no_abundance_gt=True)
+    # training_data = nn.TrainingData(type='simulated_Didymos_pyroxenes',
+    #                                 filepath=Path(
+    #                                     './datasets/Didymos_simulated/AIS simulated data v5/D1v5-10km-noiseless-40ms.mat'),
+    #                                 data_shape=data_shape,
+    #                                 endmembers=endmembers,
+    #                                 no_abundance_gt=True)
     # D1v5-3km-noiseless-40ms.mat asteroid fills the frame
     # D1D2v5-10km-noiseless-40ms.mat moon shadow on main
+    wls = constants.Itokawa_wavelengths
+    # Itokawa NIRS data from David (from https://doi.org/10.1051/0004-6361/202346290)
+    training_data = nn.TrainingData(type='Itokawa',
+                                    filepath='./datasets/Korda/Itokawa-denoised-norm.npz',
+                                    data_shape=data_shape,
+                                    endmembers=None,
+                                    no_abundance_gt=True)
 
     # mineral_spectra = endmembers
-    # # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
-    # em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
-    # em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
-    # endmembers = [em_s, em_q]
-    # wl_vectors = [wls_s, wls_q]
+    # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
+    em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
+    em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
+    endmembers = [em_s / 5, em_q / 5]
+    wl_vectors = [wls_s, wls_q]
 
     # # Load pyroxene and olivine spectra
     # pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
@@ -325,15 +336,15 @@ if __name__ == '__main__':
     # wls2, endmember2 = file_handling.load_RELAB_spectrum(
     #     'datasets/RELAB_pyroxenes/c1dl50a.tab')  # "Clinopyroxene- Wo 15 En 21 Fs 64 (B)"
 
-    # Following Wo-En-Fs ratios approximately according to Korda et al.: https://doi.org/10.1051/0004-6361/202346290
-    wls1, endmember1 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl27a.tab')  # "Orthopyroxene- En 80 Fs 20 (C)"
-    wls2, endmember2 = file_handling.load_RELAB_spectrum(
-        'datasets/RELAB_pyroxenes/c1dl43a.tab')  # "Clinopyroxene- Wo 50 En 40 Fs 10"
-    endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
-
-    endmembers = [endmember1, endmember2, endmember3]
-    wl_vectors = [wls1, wls2, wls3]
+    # # Following Wo-En-Fs ratios approximately according to Korda et al.: https://doi.org/10.1051/0004-6361/202346290
+    # wls1, endmember1 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl27a.tab')  # "Orthopyroxene- En 80 Fs 20 (C)"
+    # wls2, endmember2 = file_handling.load_RELAB_spectrum(
+    #     'datasets/RELAB_pyroxenes/c1dl43a.tab')  # "Clinopyroxene- Wo 50 En 40 Fs 10"
+    # endmember3, wls3 = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
+    #
+    # endmembers = [endmember1, endmember2, endmember3]
+    # wl_vectors = [wls1, wls2, wls3]
 
     # plt.figure()
     # # plt.plot(wls_s, em_s)
@@ -345,7 +356,7 @@ if __name__ == '__main__':
         # endmember = endmembers[i] / 10
         # endmember = endmember / np.max(endmember)
         # endmember = endmembers[i] / np.max(endmembers[i])
-        endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i])
+        endmembers[i] = prepare_endmember(endmembers[i], wl_vectors[i], type='Itokawa')
 
     # mixture = mineral_spectra[0]*0.5 + mineral_spectra[1]*0.5# + mineral_spectra[2]*0.33
     # # mixture = utils.SSA2reflectance(mixture)
