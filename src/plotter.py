@@ -158,12 +158,17 @@ def plot_spectra(orig, pred, tag, ax):
         Matplotlib axis object
     """
 
-    # To quantify noise, calculate gradients from both
-    orig_grad = sum(abs(orig[1:] - orig[:-1]))
-    pred_grad = sum(abs(pred[1:] - pred[:-1]))
+    # # To quantify noise, calculate gradients from both
+    # orig_grad = sum(abs(orig[1:] - orig[:-1]))
+    # pred_grad = sum(abs(pred[1:] - pred[:-1]))
 
-    ax.plot(constants.ASPECT_wavelengths, orig, label=f'Original, grad: {orig_grad:.2f}')
-    ax.plot(constants.ASPECT_wavelengths, pred, label=f'Prediction, grad: {pred_grad:.2f}')
+    if len(orig) == 70:
+        wls = constants.ASPECT_wavelengths
+    elif len(orig) == 64:
+        wls = constants.Itokawa_wavelengths
+
+    ax.plot(wls, orig, label=f'Original')
+    ax.plot(wls, pred, label=f'Prediction')
     ax.legend()
     ax.set_title(f'{tag}')
 
