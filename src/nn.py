@@ -193,13 +193,26 @@ class TrainingData(Dataset):
 
             h, w, l, cube, wavelengths, FWHMs, gt_abundances = file_handling.file_loader_simulated_Didymos_pyroxenes(frame_filepath=filepath,
                                                                                                                      endmembers=endmembers)
-
+        elif type == 'Itokawa':
+            h, w, l, cube, wavelengths, FWHMs = file_handling.file_loader_Itokawa_NIRS(path=filepath)
+            gt_abundances = None
         else:
             logging.info('Invalid training data type, ending execution')
             exit(1)
 
         # Make the data look like it came from ASPECT
-        input_cube, SWIR_data, test_cube = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs, vignetting=True, smoothing=False, convert_rad2refl=False, data_shape=data_shape)
+        if type == 'Itokawa':
+            input_cube, SWIR_data, test_cube = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs,
+                                                                                    vignetting=True, smoothing=False,
+                                                                                    convert_rad2refl=False,
+                                                                                    data_shape=data_shape,
+                                                                                    spectral_resampling=False)
+        else:
+            input_cube, SWIR_data, test_cube = simulation.ASPECT_NIR_SWIR_from_cube(cube, wavelengths, FWHMs,
+                                                                                    vignetting=True, smoothing=False,
+                                                                                    convert_rad2refl=False,
+                                                                                    data_shape=data_shape,
+                                                                                    spectral_resampling=True)
         input_cube = np.nan_to_num(input_cube, nan=1)  # Convert nans of short cube to ones
         if data_shape != 'actual':
             test_cube = np.nan_to_num(test_cube, nan=1)  # Convert nans of test cube to ones if no need to calculate nanmean
@@ -238,7 +251,8 @@ class TrainingData(Dataset):
             Y = np.zeros((2, input_cube.shape[0], input_cube.shape[1],
                           input_cube.shape[2]))  # add a dimension where the SWIR spectrum can be placed
             # Y[0, :, 0, 0] = SWIR_data
-            SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
+            # SWIR_length = len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index
+            SWIR_length = len(SWIR_data)
             Y[0, :SWIR_length, 0, 0] = SWIR_data
             Y[1, :, :, :] = input_cube
         else:
@@ -419,9 +433,6 @@ def train(training_data,
     def loss_fn(y_true, y_pred):
         """Calculating loss by comparing predicted spectral image cube to ground truth"""
 
-        short_y_true = y_true[:, 1, :, :, :]
-        long_y_true = y_true[:, 0, :len(constants.ASPECT_wavelengths) - constants.ASPECT_SWIR_start_channel_index, 0, 0]
-
         short_y_pred = y_pred[:, :SWIR_cutoff_index, :, :]
         long_y_pred = y_pred[:, SWIR_cutoff_index:, :, :]
 
@@ -430,9 +441,12 @@ def train(training_data,
         long_y_pred = simulation.apply_circular_mask(long_y_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
                                                 masking_value=torch.nan)
 
+        short_y_true = y_true[:, 1, :, :, :]
+        long_y_true = y_true[:, 0, :len(long_y_pred[0, :, 0, 0]), 0, 0]
+
         # Calculate short wavelength loss by comparing cubes. For loss metrics MAPE and SAM
-        metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
-        loss_short = metric_mape(short_y_pred, short_y_true)
+        # metric_mape = torchmetrics.MeanAbsolutePercentageError().to(device)
+        # loss_short = metric_mape(short_y_pred, short_y_true)
 
         # loss_short_SAM = cubeSAM(short_y_pred, short_y_true)
 
@@ -440,12 +454,11 @@ def train(training_data,
 
         # Calculate long wavelength loss by comparing mean spectrum of the masked prediction to GT spectrum
         long_y_pred = torch.nanmean(long_y_pred, dim=(2, 3))
-        loss_long = metric_mape(long_y_pred, long_y_true)
+        # loss_long = metric_mape(long_y_pred, long_y_true)
 
         # loss_long_SAM = cubeSAM(long_y_pred, long_y_true)
 
         loss_long_SID = cube_SID(long_y_pred, long_y_true)
-
 
         # Correlation of GT cube spatial features and full reconstruction cube spatial features
         spatial_correlation = tensor_image_corrcoeff(short_y_true, y_pred)
