@@ -524,15 +524,22 @@ def file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz'):
     # plt.figure()
     # plt.imshow(interp_image[:,:,10])
     # plt.show()
-    image = interp_image
+    cube = interp_image
     # The data is normalized so that reflectance at 1500 nm is 1. Itokawa geometric albedo is 0.23 ± 0.02
     # (Lee and Ishiguro, https://doi.org/10.1051/0004-6361/201832721, unfortunately they do not give an associated wl
     # for their result). Approximate that the I/F at 1500 nm is 0.23 --> multiply each spectrum by 0.23 to get rid of
     # the normalization. This means that there is no albedo variation in the end result.
-    image = image * 0.23
+    cube = cube * 0.23
     # plt.figure()
     # plt.plot(image[0,0,:])
     # plt.show()
+
+    h, w, l = cube.shape[0], cube.shape[1], cube.shape[2]
+
+    FWHMs = None  # Data has been resampled to regular grid with 20 nm interval, no FWHMs given
+    wavelengths = wavelengths / 1000  # Convert wl vector from nm to µm
+
+    return h, w, l, cube, wavelengths, FWHMs
 
 
 def open_Dawn_VIR_ISIS(cub_path='./datasets/DAWN/ISIS/m-VIR_IR_1B_1_494387713_1.cub'):
