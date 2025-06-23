@@ -90,6 +90,9 @@ ASPECT_NIR_FOV = (5.4, 6.7)
 ASPECT_SWIR_FOV = 5.85
 ASPECT_SWIR_equivalent_radius = int(ASPECT_NIR_channel_shape[0] * (ASPECT_SWIR_FOV / ASPECT_NIR_FOV[0]) / 2)
 
+#Itokawa NIRS resampled wavelength vector
+Itokawa_wavelengths = np.asarray(np.linspace(start=0.820, stop=2.080, num=64))
+
 # Heliocentric distances for Ceres and Vesta to calculate the I/F with proper level of insolation
 ceres_hc_dist = (2.55 + 2.99) / 2  # average between perihelion and aphelion
 vesta_hc_dist = (2.15 + 2.57) / 2
