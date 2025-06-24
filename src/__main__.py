@@ -229,8 +229,8 @@ if __name__ == '__main__':
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486828195_1.cub')) # another Ceres image, survey
     # training_data = nn.TrainingData(type='DAWN_ISIS', filepath=Path('./datasets/DAWN/ISIS/m-VIR_IR_1B_1_486875439_1.cub')) # Ceres, survey, Kumitoga
 
-    data_shape = 'actual'
-    # data_shape = 'full_cube'
+    # data_shape = 'actual'
+    data_shape = 'full_cube'
     if data_shape == 'VNIR_cube':
         constants.ASPECT_wavelengths = constants.ASPECT_wavelengths[:constants.ASPECT_SWIR_start_channel_index]
 
@@ -391,10 +391,10 @@ if __name__ == '__main__':
     else:
         band_count = constants.ASPECT_SWIR_start_channel_index
 
-    enc_params = {'enc_layer_count': 7,
+    enc_params = {'enc_layer_count': 5,
                   'band_count': band_count,
                   'endmember_count': common_params['endmember_count'],
-                  'e_filter_count': 1024,
+                  'e_filter_count': 512,
                   'e_kernel_size': 3,
                   'kernel_reduction': 0}
 
