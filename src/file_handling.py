@@ -481,22 +481,26 @@ def file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz'):
 
     # # # Use the following plot to select an area with the least amount of missing pixels
     # # Latitude and longitude bounds
-    # # lat_min, lat_max = -47, 69
-    # # lon_min, lon_max = 0, 360
-    #
+    # lat_min, lat_max = -47, 69
+    # lon_min, lon_max = 0, 360
+    # #
     # # Display the image
-    # channel = 60
-    # plt.imshow(image[:, :, channel], cmap='jet')#, extent=[lon_min, lon_max, lat_max, lat_min])
+    # channel = 20
     # plt.title(f'Itokawa reflectance at {wavelengths[channel]} nm')
-    # # plt.xticks(np.linspace(0, 360, 10))
-    # # plt.yticks(np.linspace(69, -47, 5))
-    # # plt.ylabel('Latitude')
-    # # plt.xlabel('Longitude')
+    # # # With indices
+    # # plt.imshow(image[:, :, channel], cmap='jet')
+    # # With coordinates
+    # plt.imshow(image[:, :, channel], cmap='gray', extent=[lon_min, lon_max, lat_max, lat_min])
+    # plt.xticks(np.linspace(0, 360, 10))
+    # plt.yticks(np.linspace(69, -47, 5))
+    # plt.ylabel('Latitude')
+    # plt.xlabel('Longitude')
     # plt.colorbar()
     # plt.show()
 
-    ymin, ymax = 41, 81
-    xmin, xmax = 234, 276
+    # Select area with indices saved in constants-file
+    ymin, ymax = constants.Itokawa_ymin, constants.Itokawa_ymax
+    xmin, xmax = constants.Itokawa_xmin, constants.Itokawa_xmax
 
     # The image has some missing pixels, shown as zeros in all wl channels: convert zeros to nans, then interpolate
     # the nan values separately for each channel
