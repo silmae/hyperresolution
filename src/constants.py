@@ -92,6 +92,15 @@ ASPECT_SWIR_equivalent_radius = int(ASPECT_NIR_channel_shape[0] * (ASPECT_SWIR_F
 
 #Itokawa NIRS resampled wavelength vector
 Itokawa_wavelengths = np.asarray(np.linspace(start=0.820, stop=2.080, num=64))
+# Latitudes and longitudes in Itokawa data
+Itokawa_longitudes = np.asarray(np.linspace(0, 360, num=361))
+Itokawa_latitudes = np.asarray(np.linspace(69, -47, num=47+69+1))
+# Indices where a sub-image from the Itokawa data is selected
+Itokawa_ymin, Itokawa_ymax = 41, 81
+Itokawa_xmin, Itokawa_xmax = 234, 276
+# Find the corresponding coordinates (note that latitudes and y-indices go in opposite directions)
+Itokawa_lat_min, Itokawa_lat_max = Itokawa_latitudes[Itokawa_ymax], Itokawa_latitudes[Itokawa_ymin]
+Itokawa_lon_min, Itokawa_lon_max = Itokawa_longitudes[Itokawa_ymin], Itokawa_longitudes[Itokawa_ymax]
 
 # Heliocentric distances for Ceres and Vesta to calculate the I/F with proper level of insolation
 ceres_hc_dist = (2.55 + 2.99) / 2  # average between perihelion and aphelion
