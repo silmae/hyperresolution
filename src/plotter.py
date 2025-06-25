@@ -31,9 +31,9 @@ plt.rcParams.update({'savefig.dpi': 300})
 plt.rcParams['mathtext.fontset'] = 'stix'
 plt.rcParams['font.family'] = 'STIXGeneral'
 
-figsize = (12,6)
+figsize = (12, 6)
 """Figure size for two plot figures."""
-figsize_single = (6,6)
+figsize_single = (6, 6)
 """Figure size for single plot figures."""
 fig_title_font_size = 18
 """Title font size."""
@@ -174,6 +174,7 @@ def plot_spectra(orig, pred, tag, ax):
 
     return ax
 
+
 def plot_endmembers(endmembers, epoch):
     """
     Plots endmember spectra into one figure, and saves it on disc.
@@ -201,7 +202,7 @@ def plot_endmembers(endmembers, epoch):
 
 
 def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, dont_show=True, save_thumbnail=True,
-                          test_scores=None, file_name="nn_train_history.png", log_y = False) -> None:
+                          test_scores=None, file_name="nn_train_history.png", log_y=False) -> None:
     """Plot training history of neural network.
 
     :param train_loss:
@@ -265,7 +266,6 @@ def plot_nn_train_history(train_loss, best_epoch_idx, best_test_epoch_idx=None, 
 
 
 def plot_abundance_maps(abundances, epoch, log_scale=False, titles=None):
-
     count = len(abundances)
     n_col = count
     n_row = 1
@@ -301,15 +301,15 @@ def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
     vmax = 0.75
     for i in range(len(abundances)):
         im = axs[i, 0].imshow(gt[i], vmin=0, vmax=vmax)
-        axs[i, 0].title.set_text(f'Ground truth, EM {i+1}')
+        axs[i, 0].title.set_text(f'Ground truth, EM {i + 1}')
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
         im = axs[i, 1].imshow(abundances[i], vmin=0, vmax=vmax)
-        axs[i, 1].title.set_text(f'Predicted, EM {i+1}')
+        axs[i, 1].title.set_text(f'Predicted, EM {i + 1}')
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
         im = axs[i, 2].imshow(RMSE_maps[i, :, :], vmin=0, vmax=vmax)
-        axs[i, 2].title.set_text(f'RMSE, EM {i+1}')
+        axs[i, 2].title.set_text(f'RMSE, EM {i + 1}')
         im.axes.xaxis.set_ticks([])
         im.axes.yaxis.set_ticks([])
 
@@ -322,8 +322,127 @@ def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
     plt.close(fig)
 
 
+def plot_Itokawa_abundances(abundance_S, abundance_Q):
+    """Plot abundance maps of Itokawa surface by overlaying them on an image to provide context. The coordinates
+    for the abundance maps are fetched from the constants-file"""
+
+    def safe_arange(start: float, stop: float or None = None, step: float = 1.0, dtype: type = float,
+                    endpoint: bool = False, linspace_like: bool = True) -> np.ndarray:
+        if stop is None:
+            start, stop = 0.0, start
+
+        if linspace_like:
+            n = int(np.round((stop - start) / step)) + int(endpoint == True)
+            return np.linspace(start, stop, n, endpoint=endpoint, dtype=dtype)
+
+        return np.array(step * np.arange(start / step, stop / step), dtype=dtype)
+
+    def plot_surface_abundance(abundance_map: np.ndarray, title='') -> None:
+
+        font_size_axis = 36
+
+        cmap = "viridis_r"
+        vmin, vmax = 0.8, 0.9
+        alpha = 0.4
+        s = 10.
+
+        xticks, yticks = safe_arange(0., 360., 10., endpoint=True), safe_arange(-90., 90., 10., endpoint=True)
+        left, right = 0.0, 360.
+        bottom, top = -90., 90.
+
+        cticks, ctickslabel = safe_arange(vmin, vmax, .1, endpoint=True), safe_arange(vmin, vmax, .1, endpoint=True)
+
+        background_image = "./datasets/Korda/new_itokawa_mosaic.jpg"
+
+        indices_file = np.load('./datasets/Korda/Itokawa-denoised-norm.npz', allow_pickle=True)
+        indices = np.array(indices_file["metadata"][:, :2], dtype=float)
+
+        # mean_of_predictions = np.mean(y_pred, axis=0) * 100.
+
+        # if what_type == "taxonomy":
+        #     _, most_probable_classes_1 = get_most_probable_classes()
+        #     _, most_probable_classes_2 = get_most_winning_classes()
+        #     most_probable_classes = stack((most_probable_classes_1,
+        #                                    np.setdiff1d(most_probable_classes_2, most_probable_classes_1)))
+        #     n_probable_classes = len(most_probable_classes)
+        #
+        #     titles = ["".join((name, " ", classes2[most_probable_classes[i]],
+        #                        "-type predictions")) for i in range(n_probable_classes)]
+        #
+        #     labels = [classes2[most_probable_classes[i]] for i in range(n_probable_classes)]
+        #
+        # elif what_type == "composition":
+        #     # set titles (this should work well)
+        #
+        #     titles_all = [mineral_names] + endmember_names
+        #     titles_all = flatten_list(titles_all)[used_indices(minerals_used, endmembers_used)]
+        #     # titles_all = flatten_list(titles_all)[unique_indices(minerals_used, endmembers_used, all_minerals=True)]
+        #
+        #     most_probable_classes = unique_indices(minerals_used, endmembers_used, return_digits=True)
+        #     labels = titles_all[most_probable_classes]
+        #
+        #     n_probable_classes = len(most_probable_classes)
+        #
+        #     print("\nSelected mineralogy:")
+        #     for i, cls in enumerate(most_probable_classes):
+        #         print("{:14s} {:5.2f}%".format(labels[i], round(mean_of_predictions[cls], 2)))
+        #
+        #     titles = ["".join((name, " ", labels[i], " predictions"))
+        #               for i in range(n_probable_classes)]
+        #
+        # else:
+        #     raise ValueError('"what_type" must be either "taxonomy" or "composition"')
+
+        # Color code dominant classes / labels
+        # probability_values = np.transpose(np.array([y_pred[:, most_probable_classes[i]]
+        #                                             for i in range(n_probable_classes)]))
+
+        # Plot the coverage map using latitude and longitude from HB
+        img = plt.imread(background_image)  # Background image
+        fig, ax = plt.subplots(figsize=(30, 25))
+        ax.imshow(img, cmap="gray", extent=[0, 360, -90, 90], alpha=1)
+
+        # # Draw the predictions map
+        # values = y_pred[:, 20]
+        # im = ax.scatter(indices[:, 0], indices[:, 1], s=s, c=values,
+        #                 marker=",", cmap='jet', vmin=vmin, vmax=vmax, alpha=alpha)
+        ax.imshow(abundance_map, cmap=cmap, extent=[constants.Itokawa_lon_min,
+                                                    constants.Itokawa_lon_max,
+                                                    constants.Itokawa_lat_min,
+                                                    constants.Itokawa_lat_max])
+
+        ax.set_xticks(xticks)
+        ax.set_yticks(yticks)
+        plt.xticks(rotation=90., fontsize=font_size_axis - 4)
+        plt.yticks(fontsize=font_size_axis - 4)
+
+        ax.grid()
+
+        ax.set_xlabel("Longitude (deg)", fontsize=font_size_axis)  # \N{DEGREE SIGN}
+        ax.set_ylabel("Latitude (deg)", fontsize=font_size_axis)
+        ax.set_title(title, fontsize=font_size_axis + 4)
+
+        ax.set_xlim(left=left, right=right)
+        ax.set_ylim(bottom=bottom, top=top)
+
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes(**cbar_kwargs)
+        # cbar = plt.colorbar(im, cax=cax)
+        # cax = divider.append_axes("bottom", size="10%", pad=1.35)
+        cbar = plt.colorbar(abundance_map, orientation="horizontal")  # , cax=cax)
+
+        cbar.set_ticks(cticks)
+        cbar.set_ticklabels(ctickslabel)
+        cbar.ax.tick_params(labelsize=font_size_axis - 4)
+
+        plt.draw()
+        plt.tight_layout()
+        plt.show()
+    plot_surface_abundance(abundance_Q, title='Q-type')
+    plot_surface_abundance(abundance_S, title='S-type')
+
 def illustrate_ASPECT_FOV(background_image=False):
-    image_path = './datasets/Vesta_FC21B0014724_11354131448F1H.png' #Vesta_FC21B0003982_11223231340F7E.png'):
+    image_path = './datasets/Vesta_FC21B0014724_11354131448F1H.png'  # Vesta_FC21B0003982_11223231340F7E.png'):
     frame = cv.imread(image_path)
     if background_image is False:
         frame = frame / frame
@@ -331,7 +450,7 @@ def illustrate_ASPECT_FOV(background_image=False):
     width = constants.ASPECT_VIS_channel_shape[1] + 100
     frame = cv.resize(frame, (width, height), interpolation=cv.INTER_AREA)
     fig, ax = plt.subplots()
-    ax.imshow(frame)#, cmap='gray')
+    ax.imshow(frame)  # , cmap='gray')
 
     rect_VIS = patches.Rectangle(xy=(50, 50),
                                  width=constants.ASPECT_VIS_channel_shape[1],
@@ -343,7 +462,7 @@ def illustrate_ASPECT_FOV(background_image=False):
             verticalalignment='top',
             fontsize=10, color='red')
 
-    height_NIR =  int(constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0])
+    height_NIR = int(constants.ASPECT_NIR_FOV[0] / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0])
     width_NIR = int(constants.ASPECT_NIR_FOV[1] / constants.ASPECT_VIS_FOV[1] * constants.ASPECT_VIS_channel_shape[1])
     rect_NIR = patches.Rectangle(xy=(int(width / 2 - width_NIR / 2),
                                      int(height / 2 - height_NIR / 2)),
@@ -351,16 +470,18 @@ def illustrate_ASPECT_FOV(background_image=False):
                                  height=height_NIR,
                                  linewidth=1.5, edgecolor='r', facecolor='none')
     ax.add_patch(rect_NIR)
-    ax.text(width/2 - width_NIR/2, height/2 - height_NIR/2 - 30, f'NIR: FOV {constants.ASPECT_NIR_FOV[1]}x{constants.ASPECT_NIR_FOV[0]} deg, {constants.ASPECT_NIR_channel_shape[1]}x{constants.ASPECT_NIR_channel_shape[0]} pixels',
+    ax.text(width / 2 - width_NIR / 2, height / 2 - height_NIR / 2 - 30,
+            f'NIR: FOV {constants.ASPECT_NIR_FOV[1]}x{constants.ASPECT_NIR_FOV[0]} deg, {constants.ASPECT_NIR_channel_shape[1]}x{constants.ASPECT_NIR_channel_shape[0]} pixels',
             horizontalalignment='left',
             verticalalignment='bottom',
             fontsize=10, color='red')
 
-    radius_SWIR = int(constants.ASPECT_SWIR_FOV / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0] / 2)
-    circ_SWIR = patches.Circle(xy=(int(width/2), int(height/2)), radius=radius_SWIR,
+    radius_SWIR = int(
+        constants.ASPECT_SWIR_FOV / constants.ASPECT_VIS_FOV[0] * constants.ASPECT_VIS_channel_shape[0] / 2)
+    circ_SWIR = patches.Circle(xy=(int(width / 2), int(height / 2)), radius=radius_SWIR,
                                linewidth=1.5, edgecolor='r', facecolor='none')
     ax.add_patch(circ_SWIR)
-    ax.text(width/2, height/2, 'SWIR: \nFOV 5.85 deg, 1 pixel',
+    ax.text(width / 2, height / 2, 'SWIR: \nFOV 5.85 deg, 1 pixel',
             horizontalalignment='center',
             verticalalignment='center',
             fontsize=10, color='red')
@@ -372,7 +493,7 @@ def illustrate_ASPECT_FOV(background_image=False):
 def illustrate_mixing_nonlinearity():
     pyroxene, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px100.csv'))
     olivine, wls = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px0.csv'))
-    px10, _  = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
+    px10, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px10.csv'))
     px25, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px25.csv'))
     px50, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px50.csv'))
     px75, _ = file_handling.load_spectral_csv(Path(constants.lab_mixtures_path, 'px75.csv'))
@@ -394,11 +515,13 @@ def illustrate_mixing_nonlinearity():
     elif px_factor == 0.90:
         plt.plot(wls, px90, label='Laboratory mixture', linestyle='-.')
 
-    plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)), label='Logarithmic mixture (simulated)')
+    plt.plot(wls, np.exp(np.log(pyroxene) * px_factor + np.log(olivine) * (1 - px_factor)),
+             label='Logarithmic mixture (simulated)')
     plt.plot(wls, pyroxene * px_factor + olivine * (1 - px_factor), label='Linear mixture (simulated)')
-    plt.plot(wls, (utils.SSA2reflectance(utils.reflectance2SSA(pyroxene) * px_factor + utils.reflectance2SSA(olivine) * (1 - px_factor))), label='Hapke mixture (simulated)')
+    plt.plot(wls, (utils.SSA2reflectance(
+        utils.reflectance2SSA(pyroxene) * px_factor + utils.reflectance2SSA(olivine) * (1 - px_factor))),
+             label='Hapke mixture (simulated)')
     plt.legend()
     plt.xlabel('Wavelengths [µm]')
     plt.ylabel('Reflectance')
     plt.show()
-
