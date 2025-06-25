@@ -1,3 +1,4 @@
+import math
 import os
 from pathlib import Path
 import logging
@@ -539,6 +540,16 @@ def file_loader_Itokawa_NIRS(path='./datasets/Korda/Itokawa-denoised-norm.npz'):
     # plt.show()
 
     h, w, l = cube.shape[0], cube.shape[1], cube.shape[2]
+
+    # Find indices and coordinates of the final cropped cube and save them for later plotting
+    test_cube = simulation.crop2aspect_ratio(cube, aspect_ratio=constants.ASPECT_NIR_channel_shape[1] /
+                                                                constants.ASPECT_NIR_channel_shape[0])
+    new_h = test_cube.shape[0]
+    half_h_reduction = (h - new_h) / 2  # This follows the logic of simulation.crop2aspect_ratio()
+    new_y_min = ymin + math.floor(half_h_reduction)
+    new_y_max = ymin - math.ceil(half_h_reduction)
+    # Modify the indices saved in constants accordingly
+    constants.Itokawa_ymin, constants.Itokawa_ymax = new_y_min, new_y_max
 
     FWHMs = None  # Data has been resampled to regular grid with 20 nm interval, no FWHMs given
     wavelengths = wavelengths / 1000  # Convert wl vector from nm to µm
