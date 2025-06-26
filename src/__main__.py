@@ -205,7 +205,7 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
     print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
     print(f"CUDA version: {torch.version.cuda}")
@@ -323,7 +323,7 @@ if __name__ == '__main__':
     # Load endmembers: mean spectra of S and Q type asteroids from Bus-DeMeo taxonomy (http://smass.mit.edu/busdemeoclass.html)
     em_s, wls_s = file_handling.load_spectral_csv(Path('./datasets/S_type_mean_spectrum.csv'))
     em_q, wls_q = file_handling.load_spectral_csv(Path('./datasets/Q_type_mean_spectrum.csv'))
-    endmembers = [em_s / 5, em_q / 5]
+    endmembers = [(em_s / em_s[21]) * 0.23, (em_q / em_q[21]) * 0.23]  # Normalize so that 1.5 µm is 1, then multiply with geometric albedo of Itokawa, 0.23
     wl_vectors = [wls_s, wls_q]
 
     # # Load pyroxene and olivine spectra
