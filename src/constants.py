@@ -100,7 +100,7 @@ Itokawa_ymin, Itokawa_ymax = 41, 81
 Itokawa_xmin, Itokawa_xmax = 234, 276
 # Find the corresponding coordinates (note that latitudes and y-indices go in opposite directions)
 Itokawa_lat_min, Itokawa_lat_max = Itokawa_latitudes[Itokawa_ymax], Itokawa_latitudes[Itokawa_ymin]
-Itokawa_lon_min, Itokawa_lon_max = Itokawa_longitudes[Itokawa_ymin], Itokawa_longitudes[Itokawa_ymax]
+Itokawa_lon_min, Itokawa_lon_max = Itokawa_longitudes[Itokawa_xmin], Itokawa_longitudes[Itokawa_xmax]
 
 # Heliocentric distances for Ceres and Vesta to calculate the I/F with proper level of insolation
 ceres_hc_dist = (2.55 + 2.99) / 2  # average between perihelion and aphelion
