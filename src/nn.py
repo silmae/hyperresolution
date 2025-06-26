@@ -673,6 +673,9 @@ def train(training_data,
                 plotter.plot_abundance_maps_with_gt(pred_abundances, gt, abundance_error_maps, epoch)
                 del gt
 
+            if len(dec_pred[0, :, 0, 0]) == 64:  # If Itokawa data
+                plotter.plot_Itokawa_abundances(abundance_S=np.transpose(abundances[0, :, :]), abundance_Q=np.transpose(abundances[1, :, :]), epoch=epoch)
+
             final_pred = torch.squeeze(final_pred)
             # Use same circular mask on the output, note that the order of width and height is opposite here
             final_pred = simulation.apply_circular_mask(final_pred, w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
@@ -754,7 +757,10 @@ def train(training_data,
             worst_ax = plotter.plot_spectra(worst_orig, worst_pred, tag='worst', ax=axs[0, 0])
             best_ax = plotter.plot_spectra(best_orig, best_pred, tag='best', ax=axs[0, 1])
             mid_ax = plotter.plot_spectra(mid_orig, mid_pred, tag='middle', ax=axs[1, 0])
-            axs[1, 1].imshow(cube_original[20, :, :])
+            plottable_cube = np.copy(cube_original)
+            plottable_cube = simulation.apply_circular_mask(np.expand_dims(plottable_cube[20, :, :], axis=2), w, h, radius=constants.ASPECT_SWIR_equivalent_radius,
+                                                   masking_value=np.nan)
+            axs[1, 1].imshow(plottable_cube, cmap='gray')
             axs[1, 1].scatter(worst_indices[1], worst_indices[0], color='r', marker='o')
             axs[1, 1].scatter(best_indices[1], best_indices[0], color='g', marker='o')
             folder = './figures/'
