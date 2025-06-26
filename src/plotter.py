@@ -322,7 +322,7 @@ def plot_abundance_maps_with_gt(abundances, gt, RMSE_maps, epoch):
     plt.close(fig)
 
 
-def plot_Itokawa_abundances(abundance_S, abundance_Q):
+def plot_Itokawa_abundances(abundance_S, abundance_Q, epoch):
     """Plot abundance maps of Itokawa surface by overlaying them on an image to provide context. The coordinates
     for the abundance maps are fetched from the constants-file"""
 
@@ -341,8 +341,9 @@ def plot_Itokawa_abundances(abundance_S, abundance_Q):
 
         font_size_axis = 36
 
-        cmap = "viridis_r"
-        vmin, vmax = 0.8, 0.9
+        cmap = "jet"
+        vmin = 0
+        vmax = 1
         alpha = 0.4
         s = 10.
 
@@ -406,11 +407,11 @@ def plot_Itokawa_abundances(abundance_S, abundance_Q):
         # values = y_pred[:, 20]
         # im = ax.scatter(indices[:, 0], indices[:, 1], s=s, c=values,
         #                 marker=",", cmap='jet', vmin=vmin, vmax=vmax, alpha=alpha)
-        ax.imshow(abundance_map, cmap=cmap, extent=[constants.Itokawa_lon_min,
-                                                    constants.Itokawa_lon_max,
-                                                    constants.Itokawa_lat_min,
-                                                    constants.Itokawa_lat_max])
 
+        im = ax.imshow(abundance_map, cmap=cmap, alpha=alpha, vmin=vmin, vmax=vmax, extent=[constants.Itokawa_lon_min,
+                                                                                            constants.Itokawa_lon_max,
+                                                                                            constants.Itokawa_lat_min,
+                                                                                            constants.Itokawa_lat_max])
         ax.set_xticks(xticks)
         ax.set_yticks(yticks)
         plt.xticks(rotation=90., fontsize=font_size_axis - 4)
@@ -427,19 +428,25 @@ def plot_Itokawa_abundances(abundance_S, abundance_Q):
 
         # divider = make_axes_locatable(ax)
         # cax = divider.append_axes(**cbar_kwargs)
-        # cbar = plt.colorbar(im, cax=cax)
+        cbar = plt.colorbar(im, orientation='horizontal')  # , cax=cax)
         # cax = divider.append_axes("bottom", size="10%", pad=1.35)
-        cbar = plt.colorbar(abundance_map, orientation="horizontal")  # , cax=cax)
+        # cbar = plt.colorbar(abundance_map, orientation="horizontal")  # , cax=cax)
+
+        # cbar.ax.set_yticklabels([f'{x:.1f}' for x in cticks])
 
         cbar.set_ticks(cticks)
-        cbar.set_ticklabels(ctickslabel)
+        cbar.set_ticklabels([f'{x:.1f}' for x in cticks])
         cbar.ax.tick_params(labelsize=font_size_axis - 4)
 
         plt.draw()
         plt.tight_layout()
-        plt.show()
-    plot_surface_abundance(abundance_Q, title='Q-type')
-    plot_surface_abundance(abundance_S, title='S-type')
+        # plt.show()
+        plt.savefig(f'./figures/{title}_e{epoch}.png', dpi=100)
+        plt.close(fig)
+
+    plot_surface_abundance(abundance_Q, title='Q-type abundance')
+    plot_surface_abundance(abundance_S, title='S-type abundance')
+
 
 def illustrate_ASPECT_FOV(background_image=False):
     image_path = './datasets/Vesta_FC21B0014724_11354131448F1H.png'  # Vesta_FC21B0003982_11223231340F7E.png'):
